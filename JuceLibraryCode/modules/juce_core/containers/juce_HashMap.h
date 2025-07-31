@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -28,6 +40,8 @@ namespace juce
     A simple class to generate hash functions for some primitive types, intended for
     use with the HashMap class.
     @see HashMap
+
+    @tags{Core}
 */
 struct DefaultHashFunctions
 {
@@ -44,7 +58,9 @@ struct DefaultHashFunctions
     /** Generates a simple hash from a variant. */
     static int generateHash (const var& key, int upperLimit) noexcept       { return generateHash (key.toString(), upperLimit); }
     /** Generates a simple hash from a void ptr. */
-    static int generateHash (const void* key, int upperLimit) noexcept      { return generateHash ((pointer_sized_uint) key, upperLimit); }
+    static int generateHash (const void* key, int upperLimit) noexcept      { return generateHash ((uint64) (pointer_sized_uint) key, upperLimit); }
+    /** Generates a simple hash from a UUID. */
+    static int generateHash (const Uuid& key, int upperLimit) noexcept      { return generateHash (key.hash(), upperLimit); }
 };
 
 
@@ -89,6 +105,8 @@ struct DefaultHashFunctions
 
     @tparam HashFunctionType The class of hash function, which must be copy-constructible.
     @see CriticalSection, DefaultHashFunctions, NamedValueSet, SortedSet
+
+    @tags{Core}
 */
 template <typename KeyType,
           typename ValueType,
@@ -97,8 +115,8 @@ template <typename KeyType,
 class HashMap
 {
 private:
-    typedef typename TypeHelpers::ParameterType<KeyType>::type   KeyTypeParameter;
-    typedef typename TypeHelpers::ParameterType<ValueType>::type ValueTypeParameter;
+    using KeyTypeParameter   = typename TypeHelpers::ParameterType<KeyType>::type;
+    using ValueTypeParameter = typename TypeHelpers::ParameterType<ValueType>::type;
 
 public:
     //==============================================================================
@@ -114,7 +132,7 @@ public:
     */
     explicit HashMap (int numberOfSlots = defaultHashTableSize,
                       HashFunctionType hashFunction = HashFunctionType())
-       : hashFunctionToUse (hashFunction), totalNumItems (0)
+       : hashFunctionToUse (hashFunction)
     {
         hashSlots.insertMultiple (0, nullptr, numberOfSlots);
     }
@@ -136,11 +154,11 @@ public:
 
         for (auto i = hashSlots.size(); --i >= 0;)
         {
-            auto* h = hashSlots.getUnchecked(i);
+            auto* h = hashSlots.getUnchecked (i);
 
             while (h != nullptr)
             {
-                const ScopedPointer<HashEntry> deleter (h);
+                const std::unique_ptr<HashEntry> deleter (h);
                 h = h->nextEntry;
             }
 
@@ -197,7 +215,7 @@ public:
     }
 
     //==============================================================================
-    /** Returns true if the map contains an item with the specied key. */
+    /** Returns true if the map contains an item with the specified key. */
     bool contains (KeyTypeParameter keyToLookFor) const
     {
         const ScopedLockType sl (getLock());
@@ -211,7 +229,7 @@ public:
         const ScopedLockType sl (getLock());
 
         for (auto i = getNumSlots(); --i >= 0;)
-            for (auto* entry = hashSlots.getUnchecked(i); entry != nullptr; entry = entry->nextEntry)
+            for (auto* entry = hashSlots.getUnchecked (i); entry != nullptr; entry = entry->nextEntry)
                 if (entry->value == valueToLookFor)
                     return true;
 
@@ -237,7 +255,7 @@ public:
         {
             if (entry->key == keyToRemove)
             {
-                const ScopedPointer<HashEntry> deleter (entry);
+                const std::unique_ptr<HashEntry> deleter (entry);
 
                 entry = entry->nextEntry;
 
@@ -263,14 +281,14 @@ public:
 
         for (auto i = getNumSlots(); --i >= 0;)
         {
-            auto* entry = hashSlots.getUnchecked(i);
+            auto* entry = hashSlots.getUnchecked (i);
             HashEntry* previous = nullptr;
 
             while (entry != nullptr)
             {
                 if (entry->value == valueToRemove)
                 {
-                    const ScopedPointer<HashEntry> deleter (entry);
+                    const std::unique_ptr<HashEntry> deleter (entry);
 
                     entry = entry->nextEntry;
 
@@ -305,7 +323,7 @@ public:
         {
             HashEntry* nextEntry = nullptr;
 
-            for (auto* entry = hashSlots.getUnchecked(i); entry != nullptr; entry = nextEntry)
+            for (auto* entry = hashSlots.getUnchecked (i); entry != nullptr; entry = nextEntry)
             {
                 auto hashIndex = generateHashFor (entry->key, newNumberOfSlots);
 
@@ -348,7 +366,7 @@ public:
     inline const TypeOfCriticalSectionToUse& getLock() const noexcept      { return lock; }
 
     /** Returns the type of scoped lock to use for locking this array */
-    typedef typename TypeOfCriticalSectionToUse::ScopedLockType ScopedLockType;
+    using ScopedLockType = typename TypeOfCriticalSectionToUse::ScopedLockType;
 
 private:
     //==============================================================================
@@ -382,7 +400,7 @@ public:
         }
         @endcode
 
-        The order in which items are iterated bears no resemblence to the order in which
+        The order in which items are iterated bears no resemblance to the order in which
         they were originally added!
 
         Obviously as soon as you call any non-const methods on the original hash-map, any
@@ -455,7 +473,7 @@ public:
         int index;
 
         // using the copy constructor is ok, but you cannot assign iterators
-        Iterator& operator= (const Iterator&) JUCE_DELETED_FUNCTION;
+        Iterator& operator= (const Iterator&) = delete;
 
         JUCE_LEAK_DETECTOR (Iterator)
     };
@@ -473,7 +491,7 @@ private:
 
     HashFunctionType hashFunctionToUse;
     Array<HashEntry*> hashSlots;
-    int totalNumItems;
+    int totalNumItems = 0;
     TypeOfCriticalSectionToUse lock;
 
     int generateHashFor (KeyTypeParameter key, int numSlots) const
@@ -483,7 +501,7 @@ private:
         return hash;
     }
 
-    static inline HashEntry* getEntry (HashEntry* firstEntry, KeyType keyToLookFor) noexcept
+    static HashEntry* getEntry (HashEntry* firstEntry, KeyType keyToLookFor) noexcept
     {
         for (auto* entry = firstEntry; entry != nullptr; entry = entry->nextEntry)
             if (entry->key == keyToLookFor)

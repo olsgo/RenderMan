@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -28,6 +40,8 @@ namespace juce
     A special array for holding a list of strings.
 
     @see String, StringPairArray
+
+    @tags{Core}
 */
 class JUCE_API  StringArray
 {
@@ -47,11 +61,21 @@ public:
 
     /** Creates an array containing a list of strings. */
     template <typename... OtherElements>
-    StringArray (StringRef firstValue, OtherElements... otherValues) : strings (firstValue, otherValues...) {}
+    StringArray (StringRef firstValue, OtherElements&&... otherValues)
+        : strings (firstValue, std::forward<OtherElements> (otherValues)...) {}
 
-   #if JUCE_COMPILER_SUPPORTS_INITIALIZER_LISTS
+    /** Creates an array containing a list of strings. */
     StringArray (const std::initializer_list<const char*>& strings);
-   #endif
+
+    /** Creates a StringArray by moving from an Array<String> */
+    StringArray (Array<String>&&) noexcept;
+
+    /** Creates a StringArray from an array of objects which can be implicitly converted to Strings. */
+    template <typename Type>
+    StringArray (const Array<Type>& stringArray)
+    {
+        addArray (stringArray.begin(), stringArray.end());
+    }
 
     /** Creates an array from a raw array of strings.
         @param strings          an array of strings to add
@@ -87,13 +111,21 @@ public:
     StringArray (const wchar_t* const* strings, int numberOfStrings);
 
     /** Destructor. */
-    ~StringArray();
+    ~StringArray() = default;
 
     /** Copies the contents of another string array into this one */
     StringArray& operator= (const StringArray&);
 
     /** Move assignment operator */
     StringArray& operator= (StringArray&&) noexcept;
+
+    /** Copies a StringArray from an array of objects which can be implicitly converted to Strings. */
+    template <typename Type>
+    StringArray& operator= (const Array<Type>& stringArray)
+    {
+        addArray (stringArray.begin(), stringArray.end());
+        return *this;
+    }
 
     /** Swaps the contents of this and another StringArray. */
     void swapWith (StringArray&) noexcept;
@@ -133,15 +165,32 @@ public:
     */
     String& getReference (int index) noexcept;
 
+    /** Returns a reference to one of the strings in the array.
+        This lets you modify a string in-place in the array, but you must be sure that
+        the index is in-range.
+    */
+    const String& getReference (int index) const noexcept;
+
     /** Returns a pointer to the first String in the array.
         This method is provided for compatibility with standard C++ iteration mechanisms.
     */
-    inline String* begin() const noexcept       { return strings.begin(); }
+    inline String* begin() noexcept                 { return strings.begin(); }
+
+    /** Returns a pointer to the first String in the array.
+        This method is provided for compatibility with standard C++ iteration mechanisms.
+    */
+    inline const String* begin() const noexcept     { return strings.begin(); }
 
     /** Returns a pointer to the String which follows the last element in the array.
         This method is provided for compatibility with standard C++ iteration mechanisms.
     */
-    inline String* end() const noexcept         { return strings.end(); }
+    inline String* end() noexcept                  { return strings.end(); }
+
+    /** Returns a pointer to the String which follows the last element in the array.
+        This method is provided for compatibility with standard C++ iteration mechanisms.
+    */
+    inline const String* end() const noexcept       { return strings.end(); }
+
 
     /** Searches for a string in the array.
 
@@ -168,10 +217,7 @@ public:
 
     //==============================================================================
     /** Appends a string at the end of the array. */
-    void add (const String& stringToAdd);
-
-    /** Appends a string at the end of the array. */
-    void add (String&& stringToAdd);
+    void add (String stringToAdd);
 
     /** Inserts a string into the array.
 
@@ -180,7 +226,7 @@ public:
         If the index is less than zero or greater than the size of the array,
         the new string will be added to the end of the array.
     */
-    void insert (int index, const String& stringToAdd);
+    void insert (int index, String stringToAdd);
 
     /** Adds a string to the array as long as it's not already in there.
         The search can optionally be case-insensitive.
@@ -194,7 +240,7 @@ public:
         If the index is higher than the array's size, the new string will be
         added to the end of the array; if it's less than zero nothing happens.
     */
-    void set (int index, const String& newString);
+    void set (int index, String newString);
 
     /** Appends some strings from another array to the end of this one.
 
@@ -206,6 +252,18 @@ public:
     void addArray (const StringArray& other,
                    int startIndex = 0,
                    int numElementsToAdd = -1);
+
+    /** Adds items from a range of start/end iterators of some kind of objects which
+        can be implicitly converted to Strings.
+    */
+    template <typename Iterator>
+    void addArray (Iterator&& start, Iterator&& end)
+    {
+        ensureStorageAllocated (size() + (int) static_cast<size_t> (end - start));
+
+        while (start != end)
+            strings.add (*start++);
+    }
 
     /** Merges the strings from another array into this one.
         This will not add a string that already exists.
@@ -392,7 +450,7 @@ public:
 
     //==============================================================================
     /** Sorts the array into alphabetical order.
-        @param ignoreCase       if true, the comparisons used will be case-sensitive.
+        @param ignoreCase       if true, the comparisons used will not be case-sensitive.
     */
     void sort (bool ignoreCase);
 

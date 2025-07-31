@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -31,6 +39,8 @@ namespace juce
 /**
     A component that displays a text string, and can optionally become a text
     editor when clicked.
+
+    @tags{GUI}
 */
 class JUCE_API  Label  : public Component,
                          public SettableTooltipClient,
@@ -49,7 +59,7 @@ public:
            const String& labelText = String());
 
     /** Destructor. */
-    ~Label();
+    ~Label() override;
 
     //==============================================================================
     /** Changes the label text.
@@ -182,7 +192,7 @@ public:
     {
     public:
         /** Destructor. */
-        virtual ~Listener() {}
+        virtual ~Listener() = default;
 
         /** Called when a Label's text has changed. */
         virtual void labelTextChanged (Label* labelThatHasChanged) = 0;
@@ -199,6 +209,16 @@ public:
 
     /** Deregisters a previously-registered listener. */
     void removeListener (Listener* listener);
+
+    //==============================================================================
+    /** You can assign a lambda to this callback object to have it called when the label text is changed. */
+    std::function<void()> onTextChange;
+
+    /** You can assign a lambda to this callback object to have it called when the label's editor is shown. */
+    std::function<void()> onEditorShow;
+
+    /** You can assign a lambda to this callback object to have it called when the label's editor is hidden. */
+    std::function<void()> onEditorHide;
 
     //==============================================================================
     /** Makes the label turn into a TextEditor when clicked.
@@ -264,11 +284,15 @@ public:
     */
     struct JUCE_API  LookAndFeelMethods
     {
-        virtual ~LookAndFeelMethods() {}
+        virtual ~LookAndFeelMethods() = default;
 
         virtual void drawLabel (Graphics&, Label&) = 0;
         virtual Font getLabelFont (Label&) = 0;
+        virtual BorderSize<int> getLabelBorderSize (Label&) = 0;
     };
+
+    /** @internal */
+    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override;
 
 protected:
     //==============================================================================
@@ -311,7 +335,7 @@ protected:
     /** @internal */
     void enablementChanged() override;
     /** @internal */
-    KeyboardFocusTraverser* createFocusTraverser() override;
+    std::unique_ptr<ComponentTraverser> createKeyboardFocusTraverser() override;
     /** @internal */
     void textEditorTextChanged (TextEditor&) override;
     /** @internal */
@@ -331,25 +355,23 @@ private:
     //==============================================================================
     Value textValue;
     String lastTextValue;
-    Font font;
-    Justification justification;
-    ScopedPointer<TextEditor> editor;
+    Font font { withDefaultMetrics (FontOptions { 15.0f }) };
+    Justification justification = Justification::centredLeft;
+    std::unique_ptr<TextEditor> editor;
     ListenerList<Listener> listeners;
     WeakReference<Component> ownerComponent;
-    BorderSize<int> border;
-    float minimumHorizontalScale;
-    TextInputTarget::VirtualKeyboardType keyboardType;
-    bool editSingleClick;
-    bool editDoubleClick;
-    bool lossOfFocusDiscardsChanges;
-    bool leftOfOwnerComp;
+    BorderSize<int> border { 1, 5, 1, 5 };
+    float minimumHorizontalScale = 0;
+    TextInputTarget::VirtualKeyboardType keyboardType = TextInputTarget::textKeyboard;
+    bool editSingleClick = false;
+    bool editDoubleClick = false;
+    bool lossOfFocusDiscardsChanges = false;
+    bool leftOfOwnerComp = false;
 
     bool updateFromTextEditorContents (TextEditor&);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Label)
 };
 
-/** This typedef is just for compatibility with old code - newer code should use the Label::Listener class directly. */
-typedef Label::Listener LabelListener;
 
 } // namespace juce

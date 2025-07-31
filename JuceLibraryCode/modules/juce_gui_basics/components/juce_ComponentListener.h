@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -37,12 +45,14 @@ namespace juce
     Be sure to deregister listeners before you delete them!
 
     @see Component::addComponentListener, Component::removeComponentListener
+
+    @tags{GUI}
 */
 class JUCE_API  ComponentListener
 {
 public:
     /** Destructor. */
-    virtual ~ComponentListener()  {}
+    virtual ~ComponentListener() = default;
 
     /** Called when the component's position or size changes.
 
@@ -91,6 +101,7 @@ public:
 
     /** Called when the component's name is changed.
 
+        @param component    the component that had its name changed
         @see Component::setName, Component::getName
     */
     virtual void componentNameChanged (Component& component);
@@ -104,8 +115,17 @@ public:
         this - so if the object that's being deleted is a subclass of Component, then the
         subclass layers of the object will already have been destructed when it gets to this
         point!
+
+        @param component    the component that was deleted
     */
     virtual void componentBeingDeleted (Component& component);
+
+    /* Called when the component's enablement is changed.
+
+       @param component    the component that had its enablement changed
+       @see Component::setEnabled, Component::isEnabled, Component::enablementChanged
+    */
+    virtual void componentEnablementChanged (Component& component);
 };
 
 } // namespace juce

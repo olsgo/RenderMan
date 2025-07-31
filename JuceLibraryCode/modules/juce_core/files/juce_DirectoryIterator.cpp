@@ -1,48 +1,39 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
 
 namespace juce
 {
-
-DirectoryIterator::DirectoryIterator (const File& directory, bool recursive,
-                                      const String& pattern, const int type)
-  : wildCards (parseWildcards (pattern)),
-    fileFinder (directory, (recursive || wildCards.size() > 1) ? "*" : pattern),
-    wildCard (pattern),
-    path (File::addTrailingSeparator (directory.getFullPathName())),
-    index (-1),
-    totalNumFiles (-1),
-    whatToLookFor (type),
-    isRecursive (recursive),
-    hasBeenAdvanced (false)
-{
-    // you have to specify the type of files you're looking for!
-    jassert ((type & (File::findFiles | File::findDirectories)) != 0);
-    jassert (type > 0 && type <= 7);
-}
-
-DirectoryIterator::~DirectoryIterator()
-{
-}
 
 StringArray DirectoryIterator::parseWildcards (const String& pattern)
 {
@@ -53,10 +44,10 @@ StringArray DirectoryIterator::parseWildcards (const String& pattern)
     return s;
 }
 
-bool DirectoryIterator::fileMatches (const StringArray& wildCards, const String& filename)
+bool DirectoryIterator::fileMatches (const StringArray& wildcards, const String& filename)
 {
-    for (int i = 0; i < wildCards.size(); ++i)
-        if (filename.matchesWildcard (wildCards[i], ! File::areFileNamesCaseSensitive()))
+    for (auto& w : wildcards)
+        if (filename.matchesWildcard (w, ! File::areFileNamesCaseSensitive()))
             return true;
 
     return false;
@@ -67,8 +58,10 @@ bool DirectoryIterator::next()
     return next (nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 }
 
-bool DirectoryIterator::next (bool* const isDirResult, bool* const isHiddenResult, int64* const fileSize,
-                              Time* const modTime, Time* const creationTime, bool* const isReadOnly)
+JUCE_BEGIN_IGNORE_DEPRECATION_WARNINGS
+
+bool DirectoryIterator::next (bool* isDirResult, bool* isHiddenResult, int64* fileSize,
+                              Time* modTime, Time* creationTime, bool* isReadOnly)
 {
     for (;;)
     {
@@ -79,7 +72,7 @@ bool DirectoryIterator::next (bool* const isDirResult, bool* const isHiddenResul
             if (subIterator->next (isDirResult, isHiddenResult, fileSize, modTime, creationTime, isReadOnly))
                 return true;
 
-            subIterator = nullptr;
+            subIterator.reset();
         }
 
         String filename;
@@ -93,13 +86,26 @@ bool DirectoryIterator::next (bool* const isDirResult, bool* const isHiddenResul
 
             if (! filename.containsOnly ("."))
             {
+                const auto fullPath = File::createFileWithoutCheckingPath (path + filename);
                 bool matches = false;
 
                 if (isDirectory)
                 {
-                    if (isRecursive && ((whatToLookFor & File::ignoreHiddenFiles) == 0 || ! isHidden))
-                        subIterator = new DirectoryIterator (File::createFileWithoutCheckingPath (path + filename),
-                                                             true, wildCard, whatToLookFor);
+                    const auto mayRecurseIntoPossibleHiddenDir = [this, &isHidden]
+                    {
+                        return (whatToLookFor & File::ignoreHiddenFiles) == 0 || ! isHidden;
+                    };
+
+                    const auto mayRecurseIntoPossibleSymlink = [this, &fullPath]
+                    {
+                        return followSymlinks == File::FollowSymlinks::yes
+                            || ! fullPath.isSymbolicLink()
+                            || (followSymlinks == File::FollowSymlinks::noCycles
+                                && knownPaths->find (fullPath.getLinkedTarget()) == knownPaths->end());
+                    };
+
+                    if (isRecursive && mayRecurseIntoPossibleHiddenDir() && mayRecurseIntoPossibleSymlink())
+                        subIterator.reset (new DirectoryIterator (fullPath, true, wildCard, whatToLookFor, followSymlinks, knownPaths));
 
                     matches = (whatToLookFor & File::findDirectories) != 0;
                 }
@@ -117,7 +123,7 @@ bool DirectoryIterator::next (bool* const isDirResult, bool* const isHiddenResul
 
                 if (matches)
                 {
-                    currentFile = File::createFileWithoutCheckingPath (path + filename);
+                    currentFile = fullPath;
                     if (isHiddenResult != nullptr)     *isHiddenResult = isHidden;
                     if (isDirResult != nullptr)        *isDirResult = isDirectory;
 
@@ -136,6 +142,8 @@ bool DirectoryIterator::next (bool* const isDirResult, bool* const isHiddenResul
             return false;
     }
 }
+
+JUCE_END_IGNORE_DEPRECATION_WARNINGS
 
 const File& DirectoryIterator::getFile() const
 {
@@ -156,10 +164,10 @@ float DirectoryIterator::getEstimatedProgress() const
     if (totalNumFiles <= 0)
         return 0.0f;
 
-    const float detailedIndex = (subIterator != nullptr) ? index + subIterator->getEstimatedProgress()
-                                                         : (float) index;
+    auto detailedIndex = (subIterator != nullptr) ? (float) index + subIterator->getEstimatedProgress()
+                                                  : (float) index;
 
-    return jlimit (0.0f, 1.0f, detailedIndex / totalNumFiles);
+    return jlimit (0.0f, 1.0f, detailedIndex / (float) totalNumFiles);
 }
 
 } // namespace juce

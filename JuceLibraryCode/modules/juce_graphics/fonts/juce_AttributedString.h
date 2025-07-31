@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -35,28 +43,32 @@ namespace juce
     An attributed string lets you create a string with varied fonts, colours, word-wrapping,
     layout, etc., and draw it using AttributedString::draw().
 
+    Invariants:
+    - Every character in the string is a member of exactly one attribute.
+    - Attributes are sorted such that the range-end of attribute 'i' is equal to the
+      range-begin of attribute 'i + 1'.
+
     @see TextLayout
+
+    @tags{Graphics}
 */
 class JUCE_API  AttributedString
 {
 public:
     /** Creates an empty attributed string. */
-    AttributedString();
+    AttributedString() = default;
 
     /** Creates an attributed string with the given text. */
-    explicit AttributedString (const String& text);
+    explicit AttributedString (const String& newString)  { setText (newString); }
 
-    AttributedString (const AttributedString&);
-    AttributedString& operator= (const AttributedString&);
-    AttributedString (AttributedString&&) noexcept;
-    AttributedString& operator= (AttributedString&&) noexcept;
-
-    /** Destructor. */
-    ~AttributedString() noexcept;
+    AttributedString (const AttributedString&) = default;
+    AttributedString& operator= (const AttributedString&) = default;
+    AttributedString (AttributedString&&) noexcept = default;
+    AttributedString& operator= (AttributedString&&) noexcept = default;
 
     //==============================================================================
     /** Returns the complete text of this attributed string. */
-    const String& getText() const noexcept                  { return text; }
+    const String& getText() const noexcept    { return text; }
 
     /** Replaces all the text.
         This will change the text, but won't affect any of the colour or font attributes
@@ -149,12 +161,12 @@ public:
     class JUCE_API  Attribute
     {
     public:
-        Attribute() noexcept;
-        ~Attribute() noexcept;
-        Attribute (const Attribute&) noexcept;
-        Attribute& operator= (const Attribute&) noexcept;
-        Attribute (Attribute&&) noexcept;
-        Attribute& operator= (Attribute&&) noexcept;
+        Attribute() = default;
+
+        Attribute (const Attribute&) = default;
+        Attribute& operator= (const Attribute&) = default;
+        Attribute (Attribute&&) noexcept = default;
+        Attribute& operator= (Attribute&&) noexcept = default;
 
         /** Creates an attribute that specifies the font and colour for a range of characters. */
         Attribute (Range<int> range, const Font& font, Colour colour) noexcept;
@@ -163,10 +175,10 @@ public:
         Range<int> range;
 
         /** The font for this range of characters. */
-        Font font;
+        Font font { FontOptions{} };
 
         /** The colour for this range of characters. */
-        Colour colour;
+        Colour colour { 0xff000000 };
 
     private:
         JUCE_LEAK_DETECTOR (Attribute)
@@ -195,10 +207,10 @@ public:
 
 private:
     String text;
-    float lineSpacing;
-    Justification justification;
-    WordWrap wordWrap;
-    ReadingDirection readingDirection;
+    float lineSpacing = 0.0f;
+    Justification justification = Justification::left;
+    WordWrap wordWrap = AttributedString::byWord;
+    ReadingDirection readingDirection = AttributedString::natural;
     Array<Attribute> attributes;
 
     JUCE_LEAK_DETECTOR (AttributedString)

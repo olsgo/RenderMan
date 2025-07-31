@@ -1,46 +1,51 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
 
-namespace juce
-{
-
 #if JUCE_ENABLE_LIVE_CONSTANT_EDITOR
 
-namespace LiveConstantEditor
+namespace juce::LiveConstantEditor
 {
 
 //==============================================================================
-class AllComponentRepainter  : private Timer,
-                               private DeletedAtShutdown
+class AllComponentRepainter final : private Timer,
+                                    private DeletedAtShutdown
 {
 public:
     AllComponentRepainter()  {}
-    ~AllComponentRepainter() { clearSingletonInstance(); }
+    ~AllComponentRepainter() override  { clearSingletonInstance(); }
 
-    juce_DeclareSingleton (AllComponentRepainter, false)
+    JUCE_DECLARE_SINGLETON_INLINE (AllComponentRepainter, false)
 
     void trigger()
     {
@@ -56,13 +61,13 @@ private:
         Array<Component*> alreadyDone;
 
         for (int i = TopLevelWindow::getNumTopLevelWindows(); --i >= 0;)
-            if (auto* c = TopLevelWindow::getTopLevelWindow(i))
+            if (auto* c = TopLevelWindow::getTopLevelWindow (i))
                 repaintAndResizeAllComps (c, alreadyDone);
 
         auto& desktop = Desktop::getInstance();
 
         for (int i = desktop.getNumComponents(); --i >= 0;)
-            if (auto* c = desktop.getComponent(i))
+            if (auto* c = desktop.getComponent (i))
                 repaintAndResizeAllComps (c, alreadyDone);
     }
 
@@ -76,7 +81,7 @@ private:
 
             for (int i = c->getNumChildComponents(); --i >= 0;)
             {
-                if (auto* child = c->getChildComponent(i))
+                if (auto* child = c->getChildComponent (i))
                 {
                     repaintAndResizeAllComps (child, alreadyDone);
                     alreadyDone.add (child);
@@ -89,9 +94,6 @@ private:
     }
 };
 
-juce_ImplementSingleton (AllComponentRepainter)
-juce_ImplementSingleton (ValueList)
-
 //==============================================================================
 int64 parseInt (String s)
 {
@@ -101,7 +103,7 @@ int64 parseInt (String s)
         return -parseInt (s.substring (1));
 
     if (s.startsWith ("0x"))
-        return s.substring(2).getHexValue64();
+        return s.substring (2).getHexValue64();
 
     return s.getLargeIntValue();
 }
@@ -139,15 +141,15 @@ LivePropertyEditorBase::LivePropertyEditorBase (LiveValueBase& v, CodeDocument& 
     findOriginalValueInCode();
     selectOriginalValue();
 
-    name.setFont (13.0f);
+    name.setFont (withDefaultMetrics (FontOptions { 13.0f }));
     name.setText (v.name, dontSendNotification);
     valueEditor.setMultiLine (v.isString());
     valueEditor.setReturnKeyStartsNewLine (v.isString());
     valueEditor.setText (v.getStringValue (wasHex), dontSendNotification);
-    valueEditor.addListener (this);
+    valueEditor.onTextChange = [this] { applyNewValue (valueEditor.getText()); };
     sourceEditor.setReadOnly (true);
     sourceEditor.setFont (sourceEditor.getFont().withHeight (13.0f));
-    resetButton.addListener (this);
+    resetButton.onClick = [this] { applyNewValue (value.getOriginalStringValue (wasHex)); };
 }
 
 void LivePropertyEditorBase::paint (Graphics& g)
@@ -179,16 +181,6 @@ void LivePropertyEditorBase::resized()
 
     r.removeFromLeft (4);
     sourceEditor.setBounds (r);
-}
-
-void LivePropertyEditorBase::textEditorTextChanged (TextEditor&)
-{
-    applyNewValue (valueEditor.getText());
-}
-
-void LivePropertyEditorBase::buttonClicked (Button*)
-{
-    applyNewValue (value.getOriginalStringValue (wasHex));
 }
 
 void LivePropertyEditorBase::applyNewValue (const String& s)
@@ -224,7 +216,7 @@ void LivePropertyEditorBase::findOriginalValueInCode()
     }
 
     p += (int) (sizeof ("JUCE_LIVE_CONSTANT") - 1);
-    p = p.findEndOfWhitespace();
+    p.incrementToEndOfWhitespace();
 
     if (! CharacterFunctions::find (p, CharPointer_ASCII ("JUCE_LIVE_CONSTANT")).isEmpty())
     {
@@ -268,7 +260,7 @@ void LivePropertyEditorBase::findOriginalValueInCode()
 }
 
 //==============================================================================
-class ValueListHolderComponent  : public Component
+class ValueListHolderComponent final : public Component
 {
 public:
     ValueListHolderComponent (ValueList& l) : valueList (l)
@@ -290,10 +282,10 @@ public:
 
     void resized() override
     {
-        Rectangle<int> r (getLocalBounds().reduced (2, 0));
+        auto r = getLocalBounds().reduced (2, 0);
 
         for (int i = 0; i < editors.size(); ++i)
-            editors.getUnchecked(i)->setBounds (r.removeFromTop (itemHeight));
+            editors.getUnchecked (i)->setBounds (r.removeFromTop (itemHeight));
     }
 
     enum { itemHeight = 120 };
@@ -303,8 +295,8 @@ public:
 };
 
 //==============================================================================
-class ValueList::EditorWindow  : public DocumentWindow,
-                                 private DeletedAtShutdown
+class ValueList::EditorWindow final : public DocumentWindow,
+                                      private DeletedAtShutdown
 {
 public:
     EditorWindow (ValueList& list)
@@ -322,6 +314,11 @@ public:
         setResizeLimits (500, 400, 10000, 10000);
         centreWithSize (getWidth(), getHeight());
         setVisible (true);
+    }
+
+    ~EditorWindow() override
+    {
+        setLookAndFeel (nullptr);
     }
 
     void closeButtonPressed() override
@@ -390,8 +387,8 @@ CodeDocument& ValueList::getDocument (const File& file)
 }
 
 //==============================================================================
-struct ColourEditorComp  : public Component,
-                           private ChangeListener
+struct ColourEditorComp final : public Component,
+                                private ChangeListener
 {
     ColourEditorComp (LivePropertyEditorBase& e)  : editor (e)
     {
@@ -405,21 +402,21 @@ struct ColourEditorComp  : public Component,
 
     void paint (Graphics& g) override
     {
-        g.fillCheckerBoard (getLocalBounds(), 6, 6,
+        g.fillCheckerBoard (getLocalBounds().toFloat(), 6.0f, 6.0f,
                             Colour (0xffdddddd).overlaidWith (getColour()),
                             Colour (0xffffffff).overlaidWith (getColour()));
     }
 
     void mouseDown (const MouseEvent&) override
     {
-        auto* colourSelector = new ColourSelector();
+        auto colourSelector = std::make_unique<ColourSelector>();
         colourSelector->setName ("Colour");
         colourSelector->setCurrentColour (getColour());
         colourSelector->addChangeListener (this);
         colourSelector->setColour (ColourSelector::backgroundColourId, Colours::transparentBlack);
         colourSelector->setSize (300, 400);
 
-        CallOutBox::launchAsynchronously (colourSelector, getScreenBounds(), nullptr);
+        CallOutBox::launchAsynchronously (std::move (colourSelector), getScreenBounds(), nullptr);
     }
 
     void changeListenerCallback (ChangeBroadcaster* source) override
@@ -439,8 +436,7 @@ Component* createColourEditor (LivePropertyEditorBase& editor)
 }
 
 //==============================================================================
-struct SliderComp   : public Component,
-                      private Slider::Listener
+struct SliderComp : public Component
 {
     SliderComp (LivePropertyEditorBase& e, bool useFloat)
         : editor (e), isFloat (useFloat)
@@ -448,7 +444,12 @@ struct SliderComp   : public Component,
         slider.setTextBoxStyle (Slider::NoTextBox, true, 0, 0);
         addAndMakeVisible (slider);
         updateRange();
-        slider.addListener (this);
+        slider.onDragEnd = [this] { updateRange(); };
+        slider.onValueChange = [this]
+        {
+            editor.applyNewValue (isFloat ? getAsString ((double) slider.getValue(), editor.wasHex)
+                                          : getAsString ((int64)  slider.getValue(), editor.wasHex));
+        };
     }
 
     virtual void updateRange()
@@ -462,16 +463,6 @@ struct SliderComp   : public Component,
         slider.setValue (v, dontSendNotification);
     }
 
-    void sliderValueChanged (Slider*) override
-    {
-        editor.applyNewValue (isFloat ? getAsString ((double) slider.getValue(), editor.wasHex)
-                                      : getAsString ((int64)  slider.getValue(), editor.wasHex));
-
-    }
-
-    void sliderDragStarted (Slider*) override  {}
-    void sliderDragEnded (Slider*) override    { updateRange(); }
-
     void resized() override
     {
         slider.setBounds (getLocalBounds().removeFromTop (25));
@@ -483,25 +474,25 @@ struct SliderComp   : public Component,
 };
 
 //==============================================================================
-struct BoolSliderComp  : public SliderComp
+struct BoolSliderComp final : public SliderComp
 {
-    BoolSliderComp (LivePropertyEditorBase& e) : SliderComp (e, false) {}
+    BoolSliderComp (LivePropertyEditorBase& e)
+        : SliderComp (e, false)
+    {
+        slider.onValueChange = [this] { editor.applyNewValue (slider.getValue() > 0.5 ? "true" : "false"); };
+    }
 
     void updateRange() override
     {
         slider.setRange (0.0, 1.0, dontSendNotification);
         slider.setValue (editor.value.getStringValue (false) == "true", dontSendNotification);
     }
-
-    void sliderValueChanged (Slider*) override  { editor.applyNewValue (slider.getValue() > 0.5 ? "true" : "false"); }
 };
 
 Component* createIntegerSlider (LivePropertyEditorBase& editor)  { return new SliderComp (editor, false); }
 Component* createFloatSlider   (LivePropertyEditorBase& editor)  { return new SliderComp (editor, true);  }
 Component* createBoolSlider    (LivePropertyEditorBase& editor)  { return new BoolSliderComp (editor); }
 
-}
+} // namespace juce::LiveConstantEditor
 
 #endif
-
-} // namespace juce

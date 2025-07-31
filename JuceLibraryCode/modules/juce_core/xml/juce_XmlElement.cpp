@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -23,7 +35,7 @@
 namespace juce
 {
 
-inline static bool isValidXmlNameStartCharacter (juce_wchar character) noexcept
+static bool isValidXmlNameStartCharacter (juce_wchar character) noexcept
 {
     return character == ':'
         || character == '_'
@@ -43,7 +55,7 @@ inline static bool isValidXmlNameStartCharacter (juce_wchar character) noexcept
         || (character >= 0x10000 && character <= 0xeffff);
 }
 
-inline static bool isValidXmlNameBodyCharacter (juce_wchar character) noexcept
+static bool isValidXmlNameBodyCharacter (juce_wchar character) noexcept
 {
     return isValidXmlNameStartCharacter (character)
         || character == '-'
@@ -127,10 +139,10 @@ XmlElement& XmlElement::operator= (const XmlElement& other)
 }
 
 XmlElement::XmlElement (XmlElement&& other) noexcept
-    : nextListItem      (static_cast<LinkedListPointer<XmlElement>&&> (other.nextListItem)),
-      firstChildElement (static_cast<LinkedListPointer<XmlElement>&&> (other.firstChildElement)),
-      attributes        (static_cast<LinkedListPointer<XmlAttributeNode>&&> (other.attributes)),
-      tagName           (static_cast<String&&> (other.tagName))
+    : nextListItem      (std::move (other.nextListItem)),
+      firstChildElement (std::move (other.firstChildElement)),
+      attributes        (std::move (other.attributes)),
+      tagName           (std::move (other.tagName))
 {
 }
 
@@ -141,10 +153,10 @@ XmlElement& XmlElement::operator= (XmlElement&& other) noexcept
     removeAllAttributes();
     deleteAllChildElements();
 
-    nextListItem      = static_cast<LinkedListPointer<XmlElement>&&> (other.nextListItem);
-    firstChildElement = static_cast<LinkedListPointer<XmlElement>&&> (other.firstChildElement);
-    attributes        = static_cast<LinkedListPointer<XmlAttributeNode>&&> (other.attributes);
-    tagName           = static_cast<String&&> (other.tagName);
+    nextListItem      = std::move (other.nextListItem);
+    firstChildElement = std::move (other.firstChildElement);
+    attributes        = std::move (other.attributes);
+    tagName           = std::move (other.tagName);
 
     return *this;
 }
@@ -167,50 +179,46 @@ XmlElement::~XmlElement() noexcept
 //==============================================================================
 namespace XmlOutputFunctions
 {
-   #if 0 // (These functions are just used to generate the lookup table used below)
-    bool isLegalXmlCharSlow (const juce_wchar character) noexcept
+    namespace LegalCharLookupTable
     {
-        if ((character >= 'a' && character <= 'z')
-             || (character >= 'A' && character <= 'Z')
-                || (character >= '0' && character <= '9'))
-            return true;
-
-        const char* t = " .,;:-()_+=?!'#@[]/\\*%~{}$|";
-
-        do
+        template <int c>
+        struct Bit
         {
-            if (((juce_wchar) (uint8) *t) == character)
-                return true;
+            enum { v = ((c >= 'a' && c <= 'z')
+                     || (c >= 'A' && c <= 'Z')
+                     || (c >= '0' && c <= '9')
+                     || c == ' ' || c == '.'  || c == ',' || c == ';'
+                     || c == ':' || c == '-'  || c == '(' || c == ')'
+                     || c == '_' || c == '+'  || c == '=' || c == '?'
+                     || c == '!' || c == '$'  || c == '#' || c == '@'
+                     || c == '[' || c == ']'  || c == '/' || c == '|'
+                     || c == '*' || c == '%'  || c == '~' || c == '{'
+                     || c == '}' || c == '\'' || c == '\\')
+                        ? (1 << (c & 7)) : 0 };
+        };
+
+        template <int tableIndex>
+        struct Byte
+        {
+            enum { v = (int) Bit<tableIndex * 8 + 0>::v | (int) Bit<tableIndex * 8 + 1>::v
+                     | (int) Bit<tableIndex * 8 + 2>::v | (int) Bit<tableIndex * 8 + 3>::v
+                     | (int) Bit<tableIndex * 8 + 4>::v | (int) Bit<tableIndex * 8 + 5>::v
+                     | (int) Bit<tableIndex * 8 + 6>::v | (int) Bit<tableIndex * 8 + 7>::v };
+        };
+
+        static bool isLegal (uint32 c) noexcept
+        {
+            static const unsigned char legalChars[] = { Byte< 0>::v, Byte< 1>::v, Byte< 2>::v, Byte< 3>::v,
+                                                        Byte< 4>::v, Byte< 5>::v, Byte< 6>::v, Byte< 7>::v,
+                                                        Byte< 8>::v, Byte< 9>::v, Byte<10>::v, Byte<11>::v,
+                                                        Byte<12>::v, Byte<13>::v, Byte<14>::v, Byte<15>::v };
+
+            return c < sizeof (legalChars) * 8
+                     && (legalChars[c >> 3] & (1 << (c & 7))) != 0;
         }
-        while (*++t != 0);
-
-        return false;
     }
 
-    void generateLegalCharLookupTable()
-    {
-        uint8 n[32] = { 0 };
-        for (int i = 0; i < 256; ++i)
-            if (isLegalXmlCharSlow (i))
-                n[i >> 3] |= (1 << (i & 7));
-
-        String s;
-        for (int i = 0; i < 32; ++i)
-            s << (int) n[i] << ", ";
-
-        DBG (s);
-    }
-   #endif
-
-    static bool isLegalXmlChar (const uint32 c) noexcept
-    {
-        static const unsigned char legalChars[] = { 0, 0, 0, 0, 187, 255, 255, 175, 255,
-                                                    255, 255, 191, 254, 255, 255, 127 };
-        return c < sizeof (legalChars) * 8
-                 && (legalChars [c >> 3] & (1 << (c & 7))) != 0;
-    }
-
-    static void escapeIllegalXmlChars (OutputStream& outputStream, const String& text, const bool changeNewLines)
+    static void escapeIllegalXmlChars (OutputStream& outputStream, const String& text, bool changeNewLines)
     {
         auto t = text.getCharPointer();
 
@@ -221,7 +229,7 @@ namespace XmlOutputFunctions
             if (character == 0)
                 break;
 
-            if (isLegalXmlChar (character))
+            if (LegalCharLookupTable::isLegal (character))
             {
                 outputStream << (char) character;
             }
@@ -241,7 +249,7 @@ namespace XmlOutputFunctions
                             outputStream << (char) character;
                             break;
                         }
-                        // Note: deliberate fall-through here!
+                        JUCE_FALLTHROUGH
                     default:
                         outputStream << "&#" << ((int) character) << ';';
                         break;
@@ -257,13 +265,12 @@ namespace XmlOutputFunctions
 }
 
 void XmlElement::writeElementAsText (OutputStream& outputStream,
-                                     const int indentationLevel,
-                                     const int lineWrapLength) const
+                                     int indentationLevel,
+                                     int lineWrapLength,
+                                     const char* newLineChars) const
 {
-    using namespace XmlOutputFunctions;
-
     if (indentationLevel >= 0)
-        writeSpaces (outputStream, (size_t) indentationLevel);
+        XmlOutputFunctions::writeSpaces (outputStream, (size_t) indentationLevel);
 
     if (! isTextElement())
     {
@@ -278,8 +285,8 @@ void XmlElement::writeElementAsText (OutputStream& outputStream,
             {
                 if (lineLen > lineWrapLength && indentationLevel >= 0)
                 {
-                    outputStream << newLine;
-                    writeSpaces (outputStream, attIndent);
+                    outputStream << newLineChars;
+                    XmlOutputFunctions::writeSpaces (outputStream, attIndent);
                     lineLen = 0;
                 }
 
@@ -287,7 +294,7 @@ void XmlElement::writeElementAsText (OutputStream& outputStream,
                 outputStream.writeByte (' ');
                 outputStream << att->name;
                 outputStream.write ("=\"", 2);
-                escapeIllegalXmlChars (outputStream, att->value, true);
+                XmlOutputFunctions::escapeIllegalXmlChars (outputStream, att->value, true);
                 outputStream.writeByte ('"');
                 lineLen += (int) (outputStream.getPosition() - startPos);
             }
@@ -302,24 +309,25 @@ void XmlElement::writeElementAsText (OutputStream& outputStream,
             {
                 if (child->isTextElement())
                 {
-                    escapeIllegalXmlChars (outputStream, child->getText(), false);
+                    XmlOutputFunctions::escapeIllegalXmlChars (outputStream, child->getText(), false);
                     lastWasTextNode = true;
                 }
                 else
                 {
                     if (indentationLevel >= 0 && ! lastWasTextNode)
-                        outputStream << newLine;
+                        outputStream << newLineChars;
 
                     child->writeElementAsText (outputStream,
-                                               lastWasTextNode ? 0 : (indentationLevel + (indentationLevel >= 0 ? 2 : 0)), lineWrapLength);
+                                               lastWasTextNode ? 0 : (indentationLevel + (indentationLevel >= 0 ? 2 : 0)), lineWrapLength,
+                                               newLineChars);
                     lastWasTextNode = false;
                 }
             }
 
             if (indentationLevel >= 0 && ! lastWasTextNode)
             {
-                outputStream << newLine;
-                writeSpaces (outputStream, (size_t) indentationLevel);
+                outputStream << newLineChars;
+                XmlOutputFunctions::writeSpaces (outputStream, (size_t) indentationLevel);
             }
 
             outputStream.write ("</", 2);
@@ -333,58 +341,84 @@ void XmlElement::writeElementAsText (OutputStream& outputStream,
     }
     else
     {
-        escapeIllegalXmlChars (outputStream, getText(), false);
+        XmlOutputFunctions::escapeIllegalXmlChars (outputStream, getText(), false);
     }
 }
 
-String XmlElement::createDocument (StringRef dtdToUse,
-                                   const bool allOnOneLine,
-                                   const bool includeXmlHeader,
-                                   StringRef encodingType,
-                                   const int lineWrapLength) const
+XmlElement::TextFormat::TextFormat() {}
+
+XmlElement::TextFormat XmlElement::TextFormat::singleLine() const
+{
+    auto f = *this;
+    f.newLineChars = nullptr;
+    return f;
+}
+
+XmlElement::TextFormat XmlElement::TextFormat::withoutHeader() const
+{
+    auto f = *this;
+    f.addDefaultHeader = false;
+    return f;
+}
+
+String XmlElement::toString (const TextFormat& options) const
 {
     MemoryOutputStream mem (2048);
-    writeToStream (mem, dtdToUse, allOnOneLine, includeXmlHeader, encodingType, lineWrapLength);
-
+    writeTo (mem, options);
     return mem.toUTF8();
 }
 
-void XmlElement::writeToStream (OutputStream& output, StringRef dtdToUse,
-                                bool allOnOneLine, bool includeXmlHeader,
-                                StringRef encodingType, int lineWrapLength) const
+void XmlElement::writeTo (OutputStream& output, const TextFormat& options) const
 {
-    using namespace XmlOutputFunctions;
-
-    if (includeXmlHeader)
+    if (options.customHeader.isNotEmpty())
     {
-        output << "<?xml version=\"1.0\" encoding=\"" << encodingType << "\"?>";
+        output << options.customHeader;
 
-        if (allOnOneLine)
+        if (options.newLineChars == nullptr)
             output.writeByte (' ');
         else
-            output << newLine << newLine;
+            output << options.newLineChars
+                   << options.newLineChars;
     }
-
-    if (dtdToUse.isNotEmpty())
+    else if (options.addDefaultHeader)
     {
-        output << dtdToUse;
+        output << "<?xml version=\"1.0\" encoding=\"";
 
-        if (allOnOneLine)
+        if (options.customEncoding.isNotEmpty())
+            output << options.customEncoding;
+        else
+            output << "UTF-8";
+
+        output << "\"?>";
+
+        if (options.newLineChars == nullptr)
             output.writeByte (' ');
         else
-            output << newLine;
+            output << options.newLineChars
+                   << options.newLineChars;
     }
 
-    writeElementAsText (output, allOnOneLine ? -1 : 0, lineWrapLength);
+    if (options.dtd.isNotEmpty())
+    {
+        output << options.dtd;
 
-    if (! allOnOneLine)
-        output << newLine;
+        if (options.newLineChars == nullptr)
+            output.writeByte (' ');
+        else
+            output << options.newLineChars;
+    }
+
+    writeElementAsText (output, options.newLineChars == nullptr ? -1 : 0,
+                        options.lineWrapLength,
+                        options.newLineChars);
+
+    if (options.newLineChars != nullptr)
+        output << options.newLineChars;
 }
 
-bool XmlElement::writeToFile (const File& file, StringRef dtdToUse,
-                              StringRef encodingType, int lineWrapLength) const
+bool XmlElement::writeTo (const File& destinationFile, const TextFormat& options) const
 {
-    TemporaryFile tempFile (file);
+    TemporaryFile tempFile (destinationFile);
 
     {
         FileOutputStream out (tempFile.getFile());
@@ -392,7 +426,7 @@ bool XmlElement::writeToFile (const File& file, StringRef dtdToUse,
         if (! out.openedOk())
             return false;
 
-        writeToStream (out, dtdToUse, false, true, encodingType, lineWrapLength);
+        writeTo (out, options);
         out.flush(); // (called explicitly to force an fsync on posix)
 
         if (out.getStatus().failed())
@@ -400,6 +434,48 @@ bool XmlElement::writeToFile (const File& file, StringRef dtdToUse,
     }
 
     return tempFile.overwriteTargetFileWithTemporary();
+}
+
+String XmlElement::createDocument (StringRef dtdToUse, bool allOnOneLine, bool includeXmlHeader,
+                                   StringRef encodingType, int lineWrapLength) const
+{
+    TextFormat options;
+    options.dtd = dtdToUse;
+    options.customEncoding = encodingType;
+    options.addDefaultHeader = includeXmlHeader;
+    options.lineWrapLength = lineWrapLength;
+
+    if (allOnOneLine)
+        options.newLineChars = nullptr;
+
+    return toString (options);
+}
+
+void XmlElement::writeToStream (OutputStream& output, StringRef dtdToUse,
+                                bool allOnOneLine, bool includeXmlHeader,
+                                StringRef encodingType, int lineWrapLength) const
+{
+    TextFormat options;
+    options.dtd = dtdToUse;
+    options.customEncoding = encodingType;
+    options.addDefaultHeader = includeXmlHeader;
+    options.lineWrapLength = lineWrapLength;
+
+    if (allOnOneLine)
+        options.newLineChars = nullptr;
+
+    writeTo (output, options);
+}
+
+bool XmlElement::writeToFile (const File& file, StringRef dtdToUse,
+                              StringRef encodingType, int lineWrapLength) const
+{
+    TextFormat options;
+    options.dtd = dtdToUse;
+    options.customEncoding = encodingType;
+    options.lineWrapLength = lineWrapLength;
+
+    return writeTo (file, options);
 }
 
 //==============================================================================
@@ -439,6 +515,12 @@ XmlElement* XmlElement::getNextElementWithTagName (StringRef requiredTagName) co
     return e;
 }
 
+void XmlElement::setTagName (StringRef newTagName)
+{
+    jassert (isValidXmlName (newTagName));
+    tagName = StringPool::getGlobalPool().getPooledString (newTagName);
+}
+
 //==============================================================================
 int XmlElement::getNumAttributes() const noexcept
 {
@@ -447,12 +529,8 @@ int XmlElement::getNumAttributes() const noexcept
 
 static const String& getEmptyStringRef() noexcept
 {
-   #if JUCE_ALLOW_STATIC_NULL_VARIABLES
-    return String::empty;
-   #else
     static String empty;
     return empty;
-   #endif
 }
 
 const String& XmlElement::getAttributeName (const int index) const noexcept
@@ -578,7 +656,7 @@ void XmlElement::setAttribute (const Identifier& attributeName, const int number
 
 void XmlElement::setAttribute (const Identifier& attributeName, const double number)
 {
-    setAttribute (attributeName, String (number, 20));
+    setAttribute (attributeName, serialiseDouble (number));
 }
 
 void XmlElement::removeAttribute (const Identifier& attributeName) noexcept
@@ -606,7 +684,7 @@ int XmlElement::getNumChildElements() const noexcept
 
 XmlElement* XmlElement::getChildElement (const int index) const noexcept
 {
-    return firstChildElement [index].get();
+    return firstChildElement[index].get();
 }
 
 XmlElement* XmlElement::getChildByName (StringRef childName) const noexcept
@@ -693,6 +771,8 @@ void XmlElement::removeChildElement (XmlElement* const childToRemove,
 {
     if (childToRemove != nullptr)
     {
+        jassert (containsChildElement (childToRemove));
+
         firstChildElement.remove (childToRemove);
 
         if (shouldDeleteTheChild)
@@ -838,7 +918,11 @@ bool XmlElement::isTextElement() const noexcept
     return tagName.isEmpty();
 }
 
-static const String juce_xmltextContentAttributeName ("text");
+static const String& getJuceXmlTextContentAttributeName()
+{
+    static String result { "text" };
+    return result;
+}
 
 const String& XmlElement::getText() const noexcept
 {
@@ -846,13 +930,13 @@ const String& XmlElement::getText() const noexcept
                                 // isn't actually a text element.. If this contains text sub-nodes, you
                                 // probably want to use getAllSubText instead.
 
-    return getStringAttribute (juce_xmltextContentAttributeName);
+    return getStringAttribute (getJuceXmlTextContentAttributeName());
 }
 
 void XmlElement::setText (const String& newText)
 {
     if (isTextElement())
-        setAttribute (juce_xmltextContentAttributeName, newText);
+        setAttribute (getJuceXmlTextContentAttributeName(), newText);
     else
         jassertfalse; // you can only change the text in a text element, not a normal one.
 }
@@ -884,7 +968,7 @@ String XmlElement::getChildElementAllSubText (StringRef childTagName, const Stri
 XmlElement* XmlElement::createTextElement (const String& text)
 {
     auto e = new XmlElement ((int) 0);
-    e->setAttribute (juce_xmltextContentAttributeName, text);
+    e->setAttribute (getJuceXmlTextContentAttributeName(), text);
     return e;
 }
 
@@ -920,5 +1004,53 @@ void XmlElement::deleteAllTextElements() noexcept
         child = next;
     }
 }
+
+//==============================================================================
+//==============================================================================
+#if JUCE_UNIT_TESTS
+
+class XmlElementTests final : public UnitTest
+{
+public:
+    XmlElementTests()
+        : UnitTest ("XmlElement", UnitTestCategories::xml)
+    {}
+
+    void runTest() override
+    {
+        {
+            beginTest ("Float formatting");
+
+            auto element = std::make_unique<XmlElement> ("test");
+            Identifier number ("number");
+
+            std::map<double, String> tests;
+            tests[1] = "1.0";
+            tests[1.1] = "1.1";
+            tests[1.01] = "1.01";
+            tests[0.76378] = "0.76378";
+            tests[-10] = "-10.0";
+            tests[10.01] = "10.01";
+            tests[0.0123] = "0.0123";
+            tests[-3.7e-27] = "-3.7e-27";
+            tests[1e+40] = "1.0e40";
+            tests[-12345678901234567.0] = "-1.234567890123457e16";
+            tests[192000] = "192000.0";
+            tests[1234567] = "1.234567e6";
+            tests[0.00006] = "0.00006";
+            tests[0.000006] = "6.0e-6";
+
+            for (auto& test : tests)
+            {
+                element->setAttribute (number, test.first);
+                expectEquals (element->getStringAttribute (number), test.second);
+            }
+        }
+    }
+};
+
+static XmlElementTests xmlElementTests;
+
+#endif
 
 } // namespace juce

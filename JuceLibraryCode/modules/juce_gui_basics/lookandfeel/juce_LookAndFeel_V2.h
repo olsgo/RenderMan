@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -32,37 +40,43 @@ namespace juce
     This LookAndFeel subclass implements the juce style from around 2008-12.
 
     @see LookAndFeel, LookAndFeel_V1, LookAndFeel_V3
+
+    @tags{GUI}
 */
 class JUCE_API  LookAndFeel_V2  : public LookAndFeel
 {
 public:
     LookAndFeel_V2();
-    ~LookAndFeel_V2();
+    ~LookAndFeel_V2() override;
 
     //==============================================================================
     void drawButtonBackground (Graphics&, Button&, const Colour& backgroundColour,
-                               bool isMouseOverButton, bool isButtonDown) override;
+                               bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
     Font getTextButtonFont (TextButton&, int buttonHeight) override;
 
-    void drawButtonText (Graphics&, TextButton&, bool isMouseOverButton, bool isButtonDown) override;
+    void drawButtonText (Graphics&, TextButton&,
+                         bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
     int getTextButtonWidthToFitText (TextButton&, int buttonHeight) override;
 
-    void drawToggleButton (Graphics&, ToggleButton&, bool isMouseOverButton, bool isButtonDown) override;
+    void drawToggleButton (Graphics&, ToggleButton&,
+                           bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
     void changeToggleButtonWidthToFitText (ToggleButton&) override;
 
     void drawTickBox (Graphics&, Component&,
                       float x, float y, float w, float h,
-                      bool ticked, bool isEnabled, bool isMouseOverButton, bool isButtonDown) override;
+                      bool ticked, bool isEnabled,
+                      bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
-    void drawDrawableButton (Graphics&, DrawableButton&, bool isMouseOverButton, bool isButtonDown) override;
+    void drawDrawableButton (Graphics&, DrawableButton&,
+                             bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
     //==============================================================================
     AlertWindow* createAlertWindow (const String& title, const String& message,
                                     const String& button1,
                                     const String& button2,
                                     const String& button3,
-                                    AlertWindow::AlertIconType iconType,
+                                    MessageBoxIconType iconType,
                                     int numButtons, Component* associatedComponent) override;
 
     void drawAlertBox (Graphics&, AlertWindow&, const Rectangle<int>& textArea, TextLayout&) override;
@@ -92,11 +106,12 @@ public:
     void drawProgressBar (Graphics&, ProgressBar&, int width, int height, double progress, const String& textToShow) override;
     void drawSpinningWaitAnimation (Graphics&, const Colour& colour, int x, int y, int w, int h) override;
     bool isProgressBarOpaque (ProgressBar&) override;
+    ProgressBar::Style getDefaultProgressBarStyle (const ProgressBar&) override;
 
     //==============================================================================
     bool areScrollbarButtonsVisible() override;
     void drawScrollbarButton (Graphics&, ScrollBar&, int width, int height, int buttonDirection,
-                              bool isScrollbarVertical, bool isMouseOverButton, bool isButtonDown) override;
+                              bool isScrollbarVertical, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
     void drawScrollbar (Graphics&, ScrollBar&, int x, int y, int width, int height,
                         bool isScrollbarVertical, int thumbStartPosition, int thumbSize,
@@ -145,26 +160,59 @@ public:
 
     //==============================================================================
     void drawBubble (Graphics&, BubbleComponent&, const Point<float>& tip, const Rectangle<float>& body) override;
+    void setComponentEffectForBubbleComponent (BubbleComponent& bubbleComponent) override;
 
     void drawLasso (Graphics&, Component&) override;
 
     //==============================================================================
     void drawPopupMenuBackground (Graphics&, int width, int height) override;
+    void drawPopupMenuBackgroundWithOptions (Graphics&,
+                                             int width,
+                                             int height,
+                                             const PopupMenu::Options&) override;
 
     void drawPopupMenuItem (Graphics&, const Rectangle<int>& area,
                             bool isSeparator, bool isActive, bool isHighlighted, bool isTicked, bool hasSubMenu,
                             const String& text, const String& shortcutKeyText,
                             const Drawable* icon, const Colour* textColour) override;
 
+    void drawPopupMenuItemWithOptions (Graphics&, const Rectangle<int>& area,
+                                       bool isHighlighted,
+                                       const PopupMenu::Item& item,
+                                       const PopupMenu::Options&) override;
+
     void drawPopupMenuSectionHeader (Graphics&, const Rectangle<int>& area,
                                      const String& sectionName) override;
+
+    void drawPopupMenuSectionHeaderWithOptions (Graphics&, const Rectangle<int>& area,
+                                                const String& sectionName,
+                                                const PopupMenu::Options&) override;
 
     Font getPopupMenuFont() override;
 
     void drawPopupMenuUpDownArrow (Graphics&, int width, int height, bool isScrollUpArrow) override;
 
+    void drawPopupMenuUpDownArrowWithOptions (Graphics&,
+                                              int width, int height,
+                                              bool isScrollUpArrow,
+                                              const PopupMenu::Options&) override;
+
     void getIdealPopupMenuItemSize (const String& text, bool isSeparator, int standardMenuItemHeight,
                                     int& idealWidth, int& idealHeight) override;
+
+    void getIdealPopupMenuItemSizeWithOptions (const String& text,
+                                               bool isSeparator,
+                                               int standardMenuItemHeight,
+                                               int& idealWidth,
+                                               int& idealHeight,
+                                               const PopupMenu::Options&) override;
+
+    void getIdealPopupMenuSectionHeaderSizeWithOptions (const String& text,
+                                                        int standardMenuItemHeight,
+                                                        int& idealWidth,
+                                                        int& idealHeight,
+                                                        const PopupMenu::Options&) override;
+
     int getMenuWindowFlags() override;
     void preparePopupMenuWindow (Component&) override;
 
@@ -184,30 +232,45 @@ public:
 
     int getPopupMenuBorderSize() override;
 
+    int getPopupMenuBorderSizeWithOptions (const PopupMenu::Options&) override;
+
+    void drawPopupMenuColumnSeparatorWithOptions (Graphics& g,
+                                                  const Rectangle<int>& bounds,
+                                                  const PopupMenu::Options&) override;
+
+    int getPopupMenuColumnSeparatorWidthWithOptions (const PopupMenu::Options&) override;
+
     //==============================================================================
-    void drawComboBox (Graphics&, int width, int height, bool isButtonDown,
+    void drawComboBox (Graphics&, int width, int height, bool isMouseButtonDown,
                        int buttonX, int buttonY, int buttonW, int buttonH,
                        ComboBox&) override;
     Font getComboBoxFont (ComboBox&) override;
     Label* createComboBoxTextBox (ComboBox&) override;
     void positionComboBoxText (ComboBox&, Label&) override;
+    PopupMenu::Options getOptionsForComboBoxPopupMenu (ComboBox&, Label&) override;
+    void drawComboBoxTextWhenNothingSelected (Graphics&, ComboBox&, Label&) override;
 
     //==============================================================================
     void drawLabel (Graphics&, Label&) override;
     Font getLabelFont (Label&) override;
+    BorderSize<int> getLabelBorderSize (Label&) override;
 
     //==============================================================================
     void drawLinearSlider (Graphics&, int x, int y, int width, int height,
                            float sliderPos, float minSliderPos, float maxSliderPos,
-                           const Slider::SliderStyle, Slider&) override;
+                           Slider::SliderStyle, Slider&) override;
 
     void drawLinearSliderBackground (Graphics&, int x, int y, int width, int height,
                                      float sliderPos, float minSliderPos, float maxSliderPos,
-                                     const Slider::SliderStyle, Slider&) override;
+                                     Slider::SliderStyle, Slider&) override;
+
+    void drawLinearSliderOutline (Graphics&, int x, int y, int width, int height,
+                                  Slider::SliderStyle, Slider&) override;
+
 
     void drawLinearSliderThumb (Graphics&, int x, int y, int width, int height,
                                 float sliderPos, float minSliderPos, float maxSliderPos,
-                                const Slider::SliderStyle, Slider&) override;
+                                Slider::SliderStyle, Slider&) override;
 
     void drawRotarySlider (Graphics&, int x, int y, int width, int height,
                            float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle,
@@ -257,7 +320,8 @@ public:
                                         bool positionTitleBarButtonsOnLeft) override;
 
     //==============================================================================
-    DropShadower* createDropShadowerForComponent (Component*) override;
+    std::unique_ptr<DropShadower> createDropShadowerForComponent (Component&) override;
+    std::unique_ptr<FocusOutline> createFocusOutlineForComponent (Component&) override;
 
     //==============================================================================
     void drawStretchableLayoutResizerBar (Graphics&, int w, int h, bool isVerticalBar,
@@ -313,15 +377,22 @@ public:
     void drawPropertyComponentBackground (Graphics&, int width, int height, PropertyComponent&) override;
     void drawPropertyComponentLabel (Graphics&, int width, int height, PropertyComponent&) override;
     Rectangle<int> getPropertyComponentContentPosition (PropertyComponent&) override;
+    int getPropertyPanelSectionHeaderHeight (const String& sectionTitle) override;
 
     //==============================================================================
     void drawCallOutBoxBackground (CallOutBox&, Graphics&, const Path& path, Image& cachedImage) override;
     int getCallOutBoxBorderSize (const CallOutBox&) override;
+    float getCallOutBoxCornerSize (const CallOutBox&) override;
 
     //==============================================================================
     void drawLevelMeter (Graphics&, int width, int height, float level) override;
 
     void drawKeymapChangeButton (Graphics&, int width, int height, Button&, const String& keyDescription) override;
+
+    //==============================================================================
+    Font getSidePanelTitleFont (SidePanel&) override;
+    Justification getSidePanelTitleJustification (SidePanel&) override;
+    Path getSidePanelDismissButtonShape (SidePanel&) override;
 
     //==============================================================================
     /** Draws a 3D raised (or indented) bevel using two colours.
@@ -361,7 +432,8 @@ public:
 
 private:
     //==============================================================================
-    ScopedPointer<Drawable> folderImage, documentImage;
+    std::unique_ptr<Drawable> folderImage, documentImage;
+    DropShadowEffect bubbleShadow;
 
     void drawShinyButtonShape (Graphics&,
                                float x, float y, float w, float h, float maxCornerSize,

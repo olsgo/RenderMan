@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -25,9 +37,10 @@ namespace juce
 
 #if JUCE_DEBUG
 
+//==============================================================================
 struct DanglingStreamChecker
 {
-    DanglingStreamChecker() {}
+    DanglingStreamChecker() = default;
 
     ~DanglingStreamChecker()
     {
@@ -38,12 +51,20 @@ struct DanglingStreamChecker
             nastiness..
         */
         jassert (activeStreams.size() == 0);
+
+        // We need to flag when this helper struct has been destroyed to prevent some
+        // nasty order-of-static-destruction issues
+        hasBeenDestroyed = true;
     }
 
     Array<void*, CriticalSection> activeStreams;
+
+    static bool hasBeenDestroyed;
 };
 
+bool DanglingStreamChecker::hasBeenDestroyed = false;
 static DanglingStreamChecker danglingStreamChecker;
+
 #endif
 
 //==============================================================================
@@ -51,14 +72,16 @@ OutputStream::OutputStream()
     : newLineString (NewLine::getDefault())
 {
    #if JUCE_DEBUG
-    danglingStreamChecker.activeStreams.add (this);
+    if (! DanglingStreamChecker::hasBeenDestroyed)
+        danglingStreamChecker.activeStreams.add (this);
    #endif
 }
 
 OutputStream::~OutputStream()
 {
    #if JUCE_DEBUG
-    danglingStreamChecker.activeStreams.removeFirstMatchingValue (this);
+    if (! DanglingStreamChecker::hasBeenDestroyed)
+        danglingStreamChecker.activeStreams.removeFirstMatchingValue (this);
    #endif
 }
 
@@ -171,20 +194,27 @@ bool OutputStream::writeDoubleBigEndian (double value)
 
 bool OutputStream::writeString (const String& text)
 {
+    auto numBytes = text.getNumBytesAsUTF8() + 1;
+
    #if (JUCE_STRING_UTF_TYPE == 8)
-    return write (text.toRawUTF8(), text.getNumBytesAsUTF8() + 1);
+    return write (text.toRawUTF8(), numBytes);
    #else
     // (This avoids using toUTF8() to prevent the memory bloat that it would leave behind
     // if lots of large, persistent strings were to be written to streams).
-    const size_t numBytes = text.getNumBytesAsUTF8() + 1;
     HeapBlock<char> temp (numBytes);
     text.copyToUTF8 (temp, numBytes);
     return write (temp, numBytes);
    #endif
 }
 
-bool OutputStream::writeText (const String& text, bool asUTF16, bool writeUTF16ByteOrderMark)
+bool OutputStream::writeText (const String& text, bool asUTF16, bool writeUTF16ByteOrderMark, const char* lf)
 {
+    bool replaceLineFeedWithUnix    = lf != nullptr && lf[0] == '\n' && lf[1] == 0;
+    bool replaceLineFeedWithWindows = lf != nullptr && lf[0] == '\r' && lf[1] == '\n' && lf[2] == 0;
+
+    // The line-feed passed in must be either nullptr, or "\n" or "\r\n"
+    jassert (lf == nullptr || replaceLineFeedWithWindows || replaceLineFeedWithUnix);
+
     if (asUTF16)
     {
         if (writeUTF16ByteOrderMark)
@@ -200,10 +230,17 @@ bool OutputStream::writeText (const String& text, bool asUTF16, bool writeUTF16B
             if (c == 0)
                 break;
 
-            if (c == '\n' && ! lastCharWasReturn)
-                writeShort ((short) '\r');
+            if (replaceLineFeedWithWindows)
+            {
+                if (c == '\n' && ! lastCharWasReturn)
+                    writeShort ((short) '\r');
 
-            lastCharWasReturn = (c == L'\r');
+                lastCharWasReturn = (c == L'\r');
+            }
+            else if (replaceLineFeedWithUnix && c == '\r')
+            {
+                continue;
+            }
 
             if (! writeShort ((short) c))
                 return false;
@@ -211,37 +248,57 @@ bool OutputStream::writeText (const String& text, bool asUTF16, bool writeUTF16B
     }
     else
     {
-        const char* src = text.toUTF8();
-        auto* t = src;
+        const char* src = text.toRawUTF8();
 
-        for (;;)
+        if (replaceLineFeedWithWindows)
         {
-            if (*t == '\n')
+            for (auto t = src;;)
             {
-                if (t > src)
-                    if (! write (src, (size_t) (t - src)))
+                if (*t == '\n')
+                {
+                    if (t > src)
+                        if (! write (src, (size_t) (t - src)))
+                            return false;
+
+                    if (! write ("\r\n", 2))
                         return false;
 
-                if (! write ("\r\n", 2))
-                    return false;
+                    src = t + 1;
+                }
+                else if (*t == '\r')
+                {
+                    if (t[1] == '\n')
+                        ++t;
+                }
+                else if (*t == 0)
+                {
+                    if (t > src)
+                        if (! write (src, (size_t) (t - src)))
+                            return false;
 
-                src = t + 1;
+                    break;
+                }
+
+                ++t;
             }
-            else if (*t == '\r')
+        }
+        else if (replaceLineFeedWithUnix)
+        {
+            for (;;)
             {
-                if (t[1] == '\n')
-                    ++t;
-            }
-            else if (*t == 0)
-            {
-                if (t > src)
-                    if (! write (src, (size_t) (t - src)))
+                auto c = *src++;
+
+                if (c == 0)
+                    break;
+
+                if (c != '\r')
+                    if (! writeByte (c))
                         return false;
-
-                break;
             }
-
-            ++t;
+        }
+        else
+        {
+            return write (src, text.getNumBytesAsUTF8());
         }
     }
 
@@ -273,9 +330,9 @@ int64 OutputStream::writeFromInputStream (InputStream& source, int64 numBytesToW
 }
 
 //==============================================================================
-void OutputStream::setNewLineString (const String& newLineString_)
+void OutputStream::setNewLineString (const String& newLineStringToUse)
 {
-    newLineString = newLineString_;
+    newLineString = newLineStringToUse;
 }
 
 //==============================================================================
@@ -319,7 +376,7 @@ JUCE_API OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const cha
 
 JUCE_API OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const MemoryBlock& data)
 {
-    if (data.getSize() > 0)
+    if (! data.isEmpty())
         stream.write (data.getData(), data.getSize());
 
     return stream;

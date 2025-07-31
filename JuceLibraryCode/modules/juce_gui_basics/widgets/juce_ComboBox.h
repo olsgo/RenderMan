@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -38,13 +46,13 @@ namespace juce
     either be read-only text, or editable.
 
     To find out when the user selects a different item or edits the text, you
-    can register a ComboBox::Listener to receive callbacks.
+    can assign a lambda to the onChange member, or register a ComboBox::Listener
+    to receive callbacks.
 
-    @see ComboBox::Listener
+    @tags{GUI}
 */
 class JUCE_API  ComboBox  : public Component,
                             public SettableTooltipClient,
-                            public Label::Listener,
                             public Value::Listener,
                             private AsyncUpdater
 {
@@ -58,10 +66,10 @@ public:
 
         @param componentName    the name to set for the component (see Component::setName())
     */
-    explicit ComboBox (const String& componentName = String());
+    explicit ComboBox (const String& componentName = {});
 
     /** Destructor. */
-    virtual ~ComboBox();
+    ~ComboBox() override;
 
     //==============================================================================
     /** Sets whether the text in the combo-box is editable.
@@ -240,8 +248,8 @@ public:
 
         The text passed-in will be set as the current text regardless of whether
         it is one of the items in the list. If the current text isn't one of the
-        items, then getSelectedId() will return -1, otherwise it wil return
-        the approriate ID.
+        items, then getSelectedId() will return 0, otherwise it will return
+        the appropriate ID.
 
         @param newText          the text to select
         @param notification     determines the type of change notification that will
@@ -273,7 +281,10 @@ public:
     /** Returns the PopupMenu object associated with the ComboBox.
         Can be useful for adding sub-menus to the ComboBox standard PopupMenu
     */
-    PopupMenu* getRootMenu() { return &currentMenu; }
+    PopupMenu* getRootMenu() noexcept { return &currentMenu; }
+
+    /** Returns the PopupMenu object associated with the ComboBox. */
+    const PopupMenu* getRootMenu() const noexcept { return &currentMenu; }
 
     //==============================================================================
     /**
@@ -288,7 +299,7 @@ public:
     {
     public:
         /** Destructor. */
-        virtual ~Listener() {}
+        virtual ~Listener() = default;
 
         /** Called when a ComboBox has its selected item changed. */
         virtual void comboBoxChanged (ComboBox* comboBoxThatHasChanged) = 0;
@@ -299,6 +310,10 @@ public:
 
     /** Deregisters a previously-registered listener. */
     void removeListener (Listener* listener);
+
+    //==============================================================================
+    /** You can assign a lambda to this callback object to have it called when the selected ID is changed. */
+    std::function<void()> onChange;
 
     //==============================================================================
     /** Sets a message to display when there is no item currently selected.
@@ -347,11 +362,12 @@ public:
     */
     enum ColourIds
     {
-        backgroundColourId  = 0x1000b00,    /**< The background colour to fill the box with. */
-        textColourId        = 0x1000a00,    /**< The colour for the text in the box. */
-        outlineColourId     = 0x1000c00,    /**< The colour for an outline around the box. */
-        buttonColourId      = 0x1000d00,    /**< The base colour for the button (a LookAndFeel class will probably use variations on this). */
-        arrowColourId       = 0x1000e00,    /**< The colour for the arrow shape that pops up the menu */
+        backgroundColourId     = 0x1000b00,   /**< The background colour to fill the box with. */
+        textColourId           = 0x1000a00,   /**< The colour for the text in the box. */
+        outlineColourId        = 0x1000c00,   /**< The colour for an outline around the box. */
+        buttonColourId         = 0x1000d00,   /**< The base colour for the button (a LookAndFeel class will probably use variations on this). */
+        arrowColourId          = 0x1000e00,   /**< The colour for the arrow shape that pops up the menu */
+        focusedOutlineColourId = 0x1000f00    /**< The colour that will be used to draw a box around the edge of the component when it has focus. */
     };
 
     //==============================================================================
@@ -360,7 +376,7 @@ public:
     */
     struct JUCE_API  LookAndFeelMethods
     {
-        virtual ~LookAndFeelMethods() {}
+        virtual ~LookAndFeelMethods() = default;
 
         virtual void drawComboBox (Graphics&, int width, int height, bool isButtonDown,
                                    int buttonX, int buttonY, int buttonW, int buttonH,
@@ -371,11 +387,13 @@ public:
         virtual Label* createComboBoxTextBox (ComboBox&) = 0;
 
         virtual void positionComboBoxText (ComboBox&, Label& labelToPosition) = 0;
+
+        virtual PopupMenu::Options getOptionsForComboBoxPopupMenu (ComboBox&, Label&) = 0;
+
+        virtual void drawComboBoxTextWhenNothingSelected (Graphics&, ComboBox&, Label&) = 0;
     };
 
     //==============================================================================
-    /** @internal */
-    void labelTextChanged (Label*) override;
     /** @internal */
     void enablementChanged() override;
     /** @internal */
@@ -410,12 +428,17 @@ public:
     void valueChanged (Value&) override;
     /** @internal */
     void parentHierarchyChanged() override;
+    /** @internal */
+    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override;
 
+    //==============================================================================
+   #ifndef DOXYGEN
     // These methods' bool parameters have changed: see their new method signatures.
-    JUCE_DEPRECATED (void clear (bool));
-    JUCE_DEPRECATED (void setSelectedId (int, bool));
-    JUCE_DEPRECATED (void setSelectedItemIndex (int, bool));
-    JUCE_DEPRECATED (void setText (const String&, bool));
+    [[deprecated]] void clear (bool);
+    [[deprecated]] void setSelectedId (int, bool);
+    [[deprecated]] void setSelectedItemIndex (int, bool);
+    [[deprecated]] void setText (const String&, bool);
+   #endif
 
 private:
     //==============================================================================
@@ -432,7 +455,7 @@ private:
     bool isButtonDown = false, menuActive = false, scrollWheelEnabled = false;
     float mouseWheelAccumulator = 0;
     ListenerList<Listener> listeners;
-    ScopedPointer<Label> label;
+    std::unique_ptr<Label> label;
     String textWhenNothingSelected, noChoicesMessage;
     EditableState labelEditableState = editableUnknown;
 
@@ -446,7 +469,5 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ComboBox)
 };
 
-/** This typedef is just for compatibility with old code - newer code should use the ComboBox::Listener class directly. */
-typedef ComboBox::Listener ComboBoxListener;
 
 } // namespace juce

@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -27,11 +39,7 @@ namespace TimeHelpers
 {
     static std::tm millisToLocal (int64 millis) noexcept
     {
-       #if JUCE_WINDOWS && JUCE_MINGW
-        auto now = (time_t) (millis / 1000);
-        return *localtime (&now);
-
-       #elif JUCE_WINDOWS
+       #if JUCE_WINDOWS
         std::tm result;
         millis /= 1000;
 
@@ -53,11 +61,7 @@ namespace TimeHelpers
 
     static std::tm millisToUTC (int64 millis) noexcept
     {
-       #if JUCE_WINDOWS && JUCE_MINGW
-        auto now = (time_t) (millis / 1000);
-        return *gmtime (&now);
-
-       #elif JUCE_WINDOWS
+       #if JUCE_WINDOWS
         std::tm result;
         millis /= 1000;
 
@@ -91,14 +95,14 @@ namespace TimeHelpers
                                  : (value - ((value / modulo) + 1) * modulo));
     }
 
-    static inline String formatString (const String& format, const std::tm* const tm)
+    static String formatString (const String& format, const std::tm* const tm)
     {
        #if JUCE_ANDROID
-        typedef CharPointer_UTF8  StringType;
+        using StringType = CharPointer_UTF8;
        #elif JUCE_WINDOWS
-        typedef CharPointer_UTF16 StringType;
+        using StringType = CharPointer_UTF16;
        #else
-        typedef CharPointer_UTF32 StringType;
+        using StringType = CharPointer_UTF32;
        #endif
 
        #ifdef JUCE_MSVC
@@ -126,12 +130,12 @@ namespace TimeHelpers
     }
 
     //==============================================================================
-    static inline bool isLeapYear (int year) noexcept
+    static bool isLeapYear (int year) noexcept
     {
         return (year % 400 == 0) || ((year % 100 != 0) && (year % 4 == 0));
     }
 
-    static inline int daysFromJan1 (int year, int month) noexcept
+    static int daysFromJan1 (int year, int month) noexcept
     {
         const short dayOfYear[] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334,
                                     0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335 };
@@ -139,18 +143,18 @@ namespace TimeHelpers
         return dayOfYear [(isLeapYear (year) ? 12 : 0) + month];
     }
 
-    static inline int64 daysFromYear0 (int year) noexcept
+    static int64 daysFromYear0 (int year) noexcept
     {
         --year;
         return 365 * year + (year / 400) - (year / 100) + (year / 4);
     }
 
-    static inline int64 daysFrom1970 (int year) noexcept
+    static int64 daysFrom1970 (int year) noexcept
     {
         return daysFromYear0 (year) - daysFromYear0 (1970);
     }
 
-    static inline int64 daysFrom1970 (int year, int month) noexcept
+    static int64 daysFrom1970 (int year, int month) noexcept
     {
         if (month > 11)
         {
@@ -159,7 +163,7 @@ namespace TimeHelpers
         }
         else if (month < 0)
         {
-            const int numYears = (11 - month) / 12;
+            auto numYears = (11 - month) / 12;
             year -= numYears;
             month += 12 * numYears;
         }
@@ -169,7 +173,7 @@ namespace TimeHelpers
 
     // There's no posix function that does a UTC version of mktime,
     // so annoyingly we need to implement this manually..
-    static inline int64 mktime_utc (const std::tm& t) noexcept
+    static int64 mktime_utc (const std::tm& t) noexcept
     {
         return 24 * 3600 * (daysFrom1970 (t.tm_year + 1900, t.tm_mon) + (t.tm_mday - 1))
                 + 3600 * t.tm_hour
@@ -177,21 +181,26 @@ namespace TimeHelpers
                 + t.tm_sec;
     }
 
-    static uint32 lastMSCounterValue = 0;
+    static Atomic<uint32> lastMSCounterValue { (uint32) 0 };
+
+    static String getUTCOffsetString (int utcOffsetSeconds, bool includeSemiColon)
+    {
+        if (const auto seconds = utcOffsetSeconds)
+        {
+            auto minutes = seconds / 60;
+
+            return String::formatted (includeSemiColon ? "%+03d:%02d"
+                                                       : "%+03d%02d",
+                                      minutes / 60,
+                                      abs (minutes) % 60);
+        }
+
+        return "Z";
+    }
 }
 
 //==============================================================================
-Time::Time() noexcept  : millisSinceEpoch (0)
-{
-}
-
-Time::Time (const Time& other) noexcept  : millisSinceEpoch (other.millisSinceEpoch)
-{
-}
-
-Time::Time (int64 ms) noexcept  : millisSinceEpoch (ms)
-{
-}
+Time::Time (int64 ms) noexcept  : millisSinceEpoch (ms) {}
 
 Time::Time (int year, int month, int day,
             int hours, int minutes, int seconds, int milliseconds,
@@ -211,20 +220,10 @@ Time::Time (int year, int month, int day,
                          + milliseconds;
 }
 
-Time::~Time() noexcept
-{
-}
-
-Time& Time::operator= (const Time& other) noexcept
-{
-    millisSinceEpoch = other.millisSinceEpoch;
-    return *this;
-}
-
 //==============================================================================
 int64 Time::currentTimeMillis() noexcept
 {
-   #if JUCE_WINDOWS && ! JUCE_MINGW
+   #if JUCE_WINDOWS
     struct _timeb t;
     _ftime_s (&t);
     return ((int64) t.time) * 1000 + t.millitm;
@@ -247,12 +246,12 @@ uint32 Time::getMillisecondCounter() noexcept
 {
     auto now = juce_millisecondsSinceStartup();
 
-    if (now < TimeHelpers::lastMSCounterValue)
+    if (now < TimeHelpers::lastMSCounterValue.get())
     {
         // in multi-threaded apps this might be called concurrently, so
         // make sure that our last counter value only increases and doesn't
         // go backwards..
-        if (now < TimeHelpers::lastMSCounterValue - 1000)
+        if (now < TimeHelpers::lastMSCounterValue.get() - (uint32) 1000)
             TimeHelpers::lastMSCounterValue = now;
     }
     else
@@ -265,10 +264,8 @@ uint32 Time::getMillisecondCounter() noexcept
 
 uint32 Time::getApproximateMillisecondCounter() noexcept
 {
-    if (TimeHelpers::lastMSCounterValue == 0)
-        getMillisecondCounter();
-
-    return TimeHelpers::lastMSCounterValue;
+    auto t = TimeHelpers::lastMSCounterValue.get();
+    return t == 0 ? getMillisecondCounter() : t;
 }
 
 void Time::waitForMillisecondCounter (uint32 targetTime) noexcept
@@ -299,7 +296,7 @@ void Time::waitForMillisecondCounter (uint32 targetTime) noexcept
 //==============================================================================
 double Time::highResolutionTicksToSeconds (const int64 ticks) noexcept
 {
-    return ticks / (double) getHighResolutionTicksPerSecond();
+    return (double) ticks / (double) getHighResolutionTicksPerSecond();
 }
 
 int64 Time::secondsToHighResolutionTicks (const double seconds) noexcept
@@ -308,10 +305,10 @@ int64 Time::secondsToHighResolutionTicks (const double seconds) noexcept
 }
 
 //==============================================================================
-String Time::toString (const bool includeDate,
-                       const bool includeTime,
-                       const bool includeSeconds,
-                       const bool use24HourClock) const noexcept
+String Time::toString (bool includeDate,
+                       bool includeTime,
+                       bool includeSeconds,
+                       bool use24HourClock) const
 {
     String result;
 
@@ -382,24 +379,20 @@ bool Time::isDaylightSavingTime() const noexcept
     return TimeHelpers::millisToLocal (millisSinceEpoch).tm_isdst != 0;
 }
 
-String Time::getTimeZone() const noexcept
+String Time::getTimeZone() const
 {
     String zone[2];
 
-  #if JUCE_WINDOWS
-   #if JUCE_MSVC || JUCE_CLANG
+  #if JUCE_WINDOWS && (JUCE_MSVC || JUCE_CLANG)
     _tzset();
 
     for (int i = 0; i < 2; ++i)
     {
         char name[128] = { 0 };
         size_t length;
-        _get_tzname (&length, name, 127, i);
+        _get_tzname (&length, name, sizeof (name) - 1, i);
         zone[i] = name;
     }
-   #else
-    #warning "Can't find a replacement for tzset on mingw - ideas welcome!"
-   #endif
   #else
     tzset();
 
@@ -428,17 +421,7 @@ int Time::getUTCOffsetSeconds() const noexcept
 
 String Time::getUTCOffsetString (bool includeSemiColon) const
 {
-    if (int seconds = getUTCOffsetSeconds())
-    {
-        const int minutes = seconds / 60;
-
-        return String::formatted (includeSemiColon ? "%+03d:%02d"
-                                                   : "%+03d%02d",
-                                  minutes / 60,
-                                  minutes % 60);
-    }
-
-    return "Z";
+    return TimeHelpers::getUTCOffsetString (getUTCOffsetSeconds(), includeSemiColon);
 }
 
 String Time::toISO8601 (bool includeDividerCharacters) const
@@ -460,7 +443,7 @@ static int parseFixedSizeIntAndSkip (String::CharPointerType& t, int numChars, c
 
     for (int i = numChars; --i >= 0;)
     {
-        const int digit = (int) (*t - '0');
+        auto digit = (int) (*t - '0');
 
         if (! isPositiveAndBelow (digit, 10))
             return -1;
@@ -475,7 +458,7 @@ static int parseFixedSizeIntAndSkip (String::CharPointerType& t, int numChars, c
     return n;
 }
 
-Time Time::fromISO8601 (StringRef iso) noexcept
+Time Time::fromISO8601 (StringRef iso)
 {
     auto t = iso.text;
     auto year = parseFixedSizeIntAndSkip (t, 4, '-');
@@ -513,7 +496,7 @@ Time Time::fromISO8601 (StringRef iso) noexcept
         if (seconds < 0)
              return {};
 
-        if (*t == '.')
+        if (*t == '.' || *t == ',')
         {
             ++t;
             milliseconds = parseFixedSizeIntAndSkip (t, 3, 0);
@@ -589,7 +572,8 @@ Time& Time::operator-= (RelativeTime delta) noexcept           { millisSinceEpoc
 Time operator+ (Time time, RelativeTime delta) noexcept        { Time t (time); return t += delta; }
 Time operator- (Time time, RelativeTime delta) noexcept        { Time t (time); return t -= delta; }
 Time operator+ (RelativeTime delta, Time time) noexcept        { Time t (time); return t += delta; }
-const RelativeTime operator- (Time time1, Time time2) noexcept { return RelativeTime::milliseconds (time1.toMilliseconds() - time2.toMilliseconds()); }
+
+RelativeTime operator- (Time time1, Time time2) noexcept { return RelativeTime::milliseconds (time1.toMilliseconds() - time2.toMilliseconds()); }
 
 bool operator== (Time time1, Time time2) noexcept      { return time1.toMilliseconds() == time2.toMilliseconds(); }
 bool operator!= (Time time1, Time time2) noexcept      { return time1.toMilliseconds() != time2.toMilliseconds(); }
@@ -598,7 +582,7 @@ bool operator>  (Time time1, Time time2) noexcept      { return time1.toMillisec
 bool operator<= (Time time1, Time time2) noexcept      { return time1.toMilliseconds() <= time2.toMilliseconds(); }
 bool operator>= (Time time1, Time time2) noexcept      { return time1.toMilliseconds() >= time2.toMilliseconds(); }
 
-static int getMonthNumberForCompileDate (const String& m) noexcept
+static int getMonthNumberForCompileDate (const String& m)
 {
     for (int i = 0; i < 12; ++i)
         if (m.equalsIgnoreCase (shortMonthNames[i]))
@@ -610,14 +594,18 @@ static int getMonthNumberForCompileDate (const String& m) noexcept
     return 0;
 }
 
+// Implemented in juce_core_CompilationTime.cpp
+extern const char* juce_compilationDate;
+extern const char* juce_compilationTime;
+
 Time Time::getCompilationDate()
 {
     StringArray dateTokens, timeTokens;
 
-    dateTokens.addTokens (__DATE__, true);
+    dateTokens.addTokens (juce_compilationDate, true);
     dateTokens.removeEmptyStrings (true);
 
-    timeTokens.addTokens (__TIME__, ":", StringRef());
+    timeTokens.addTokens (juce_compilationTime, ":", StringRef());
 
     return Time (dateTokens[2].getIntValue(),
                  getMonthNumberForCompileDate (dateTokens[0]),
@@ -631,10 +619,12 @@ Time Time::getCompilationDate()
 //==============================================================================
 #if JUCE_UNIT_TESTS
 
-class TimeTests  : public UnitTest
+class TimeTests final : public UnitTest
 {
 public:
-    TimeTests() : UnitTest ("Time", "Time") {}
+    TimeTests()
+        : UnitTest ("Time", UnitTestCategories::time)
+    {}
 
     void runTest() override
     {
@@ -650,19 +640,32 @@ public:
         expect (t.getUTCOffsetString (true)  == "Z" || t.getUTCOffsetString (true).length() == 6);
         expect (t.getUTCOffsetString (false) == "Z" || t.getUTCOffsetString (false).length() == 5);
 
+        expect (TimeHelpers::getUTCOffsetString (-(3 * 60 + 15) * 60, true) == "-03:15");
+        expect (TimeHelpers::getUTCOffsetString (-(3 * 60 + 30) * 60, true) == "-03:30");
+        expect (TimeHelpers::getUTCOffsetString (-(3 * 60 + 45) * 60, true) == "-03:45");
+
+        expect (TimeHelpers::getUTCOffsetString ((3 * 60 + 15) * 60, true) == "+03:15");
+
         expect (Time::fromISO8601 (t.toISO8601 (true)) == t);
         expect (Time::fromISO8601 (t.toISO8601 (false)) == t);
 
         expect (Time::fromISO8601 ("2016-02-16") == Time (2016, 1, 16, 0, 0, 0, 0, false));
-        expect (Time::fromISO8601 ("20160216Z") == Time (2016, 1, 16, 0, 0, 0, 0, false));
+        expect (Time::fromISO8601 ("20160216Z")  == Time (2016, 1, 16, 0, 0, 0, 0, false));
+
         expect (Time::fromISO8601 ("2016-02-16T15:03:57+00:00") == Time (2016, 1, 16, 15, 3, 57, 0, false));
-        expect (Time::fromISO8601 ("20160216T150357+0000") == Time (2016, 1, 16, 15, 3, 57, 0, false));
+        expect (Time::fromISO8601 ("20160216T150357+0000")      == Time (2016, 1, 16, 15, 3, 57, 0, false));
+
         expect (Time::fromISO8601 ("2016-02-16T15:03:57.999+00:00") == Time (2016, 1, 16, 15, 3, 57, 999, false));
-        expect (Time::fromISO8601 ("20160216T150357.999+0000") == Time (2016, 1, 16, 15, 3, 57, 999, false));
-        expect (Time::fromISO8601 ("2016-02-16T15:03:57.999Z") == Time (2016, 1, 16, 15, 3, 57, 999, false));
-        expect (Time::fromISO8601 ("20160216T150357.999Z") == Time (2016, 1, 16, 15, 3, 57, 999, false));
+        expect (Time::fromISO8601 ("20160216T150357.999+0000")      == Time (2016, 1, 16, 15, 3, 57, 999, false));
+        expect (Time::fromISO8601 ("2016-02-16T15:03:57.999Z")      == Time (2016, 1, 16, 15, 3, 57, 999, false));
+        expect (Time::fromISO8601 ("2016-02-16T15:03:57,999Z")      == Time (2016, 1, 16, 15, 3, 57, 999, false));
+        expect (Time::fromISO8601 ("20160216T150357.999Z")          == Time (2016, 1, 16, 15, 3, 57, 999, false));
+        expect (Time::fromISO8601 ("20160216T150357,999Z")          == Time (2016, 1, 16, 15, 3, 57, 999, false));
+
         expect (Time::fromISO8601 ("2016-02-16T15:03:57.999-02:30") == Time (2016, 1, 16, 17, 33, 57, 999, false));
-        expect (Time::fromISO8601 ("20160216T150357.999-0230") == Time (2016, 1, 16, 17, 33, 57, 999, false));
+        expect (Time::fromISO8601 ("2016-02-16T15:03:57,999-02:30") == Time (2016, 1, 16, 17, 33, 57, 999, false));
+        expect (Time::fromISO8601 ("20160216T150357.999-0230")      == Time (2016, 1, 16, 17, 33, 57, 999, false));
+        expect (Time::fromISO8601 ("20160216T150357,999-0230")      == Time (2016, 1, 16, 17, 33, 57, 999, false));
 
         expect (Time (1970,  0,  1,  0,  0,  0, 0, false) == Time (0));
         expect (Time (2106,  1,  7,  6, 28, 15, 0, false) == Time (4294967295000));
@@ -674,7 +677,10 @@ public:
 
         expect (Time (1982, 1, 1, 12, 0, 0, 0, true) + RelativeTime::days (365) == Time (1983, 1, 1, 12, 0, 0, 0, true));
         expect (Time (1970, 1, 1, 12, 0, 0, 0, true) + RelativeTime::days (365) == Time (1971, 1, 1, 12, 0, 0, 0, true));
+
+       #if ! JUCE_32BIT
         expect (Time (2038, 1, 1, 12, 0, 0, 0, true) + RelativeTime::days (365) == Time (2039, 1, 1, 12, 0, 0, 0, true));
+       #endif
 
         expect (Time (1982, 1, 1, 12, 0, 0, 0, false) + RelativeTime::days (365) == Time (1983, 1, 1, 12, 0, 0, 0, false));
         expect (Time (1970, 1, 1, 12, 0, 0, 0, false) + RelativeTime::days (365) == Time (1971, 1, 1, 12, 0, 0, 0, false));

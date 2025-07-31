@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -37,6 +45,8 @@ namespace juce
 
     @see Component::enterModalState, Component::exitModalState, Component::isCurrentlyModal,
          Component::getCurrentlyModalComponent, Component::isCurrentlyBlockedByAnotherModalComponent
+
+    @tags{GUI}
 */
 class JUCE_API  ModalComponentManager   : private AsyncUpdater,
                                           private DeletedAtShutdown
@@ -55,10 +65,10 @@ public:
     {
     public:
         /** */
-        Callback() {}
+        Callback() = default;
 
         /** Destructor. */
-        virtual ~Callback() {}
+        virtual ~Callback() = default;
 
         /** Called to indicate that a modal component has been dismissed.
 
@@ -74,7 +84,9 @@ public:
     };
 
     //==============================================================================
-    juce_DeclareSingleton_SingleThreaded_Minimal (ModalComponentManager)
+   #ifndef DOXYGEN
+    JUCE_DECLARE_SINGLETON_SINGLETHREADED_MINIMAL_INLINE (ModalComponentManager)
+   #endif
 
     //==============================================================================
     /** Returns the number of components currently being shown modally.
@@ -88,10 +100,10 @@ public:
     Component* getModalComponent (int index) const;
 
     /** Returns true if the specified component is in a modal state. */
-    bool isModal (Component* component) const;
+    bool isModal (const Component* component) const;
 
     /** Returns true if the specified component is currently the topmost modal component. */
-    bool isFrontModalComponent (Component* component) const;
+    bool isFrontModalComponent (const Component* component) const;
 
     /** Adds a new callback that will be called when the specified modal component is dismissed.
 
@@ -123,6 +135,19 @@ public:
     int runEventLoopForCurrentComponent();
    #endif
 
+    /** @internal Only friends of Key can call startModal and endModal. */
+    class Key
+    {
+        friend Component;
+        Key() {}
+    };
+
+    /** @internal */
+    void startModal (Key, Component*, bool autoDelete);
+
+    /** @internal */
+    void endModal (Key, Component*, int returnValue);
+
 protected:
     /** Creates a ModalComponentManager.
         You shouldn't ever call the constructor - it's a singleton, so use ModalComponentManager::getInstance()
@@ -130,23 +155,15 @@ protected:
     ModalComponentManager();
 
     /** Destructor. */
-    ~ModalComponentManager();
+    ~ModalComponentManager() override;
 
     /** @internal */
     void handleAsyncUpdate() override;
 
 private:
     //==============================================================================
-    class ModalItem;
-    class ReturnValueRetriever;
-
-    friend class Component;
-    friend struct ContainerDeletePolicy<ModalItem>;
+    struct ModalItem;
     OwnedArray<ModalItem> stack;
-
-    void startModal (Component*, bool autoDelete);
-    void endModal (Component*, int returnValue);
-    void endModal (Component*);
 
     JUCE_DECLARE_NON_COPYABLE (ModalComponentManager)
 };
@@ -155,10 +172,34 @@ private:
 /**
     This class provides some handy utility methods for creating ModalComponentManager::Callback
     objects that will invoke a static function with some parameters when a modal component is dismissed.
+
+    @tags{GUI}
 */
-class ModalCallbackFunction
+class JUCE_API ModalCallbackFunction
 {
 public:
+    /** This is a utility function to create a ModalComponentManager::Callback that will
+        call a callable object.
+
+        The function that you supply must take an integer parameter, which is the result code that
+        was returned when the modal component was dismissed.
+
+        @see ModalComponentManager::Callback
+    */
+    template <typename CallbackFn>
+    static ModalComponentManager::Callback* create (CallbackFn&& fn)
+    {
+        struct Callable  : public ModalComponentManager::Callback
+        {
+            explicit Callable (CallbackFn&& f)  : fn (std::forward<CallbackFn> (f)) {}
+            void modalStateFinished (int result) override  { NullCheckedInvocation::invoke (std::move (fn), result); }
+
+            std::remove_reference_t<CallbackFn> fn;
+        };
+
+        return new Callable (std::forward<CallbackFn> (fn));
+    }
+
     //==============================================================================
     /** This is a utility function to create a ModalComponentManager::Callback that will
         call a static function with a parameter.
@@ -177,7 +218,7 @@ public:
 
         Component* someKindOfComp;
         ...
-        someKindOfComp->enterModalState (ModalCallbackFunction::create (myCallbackFunction, 3.0));
+        someKindOfComp->enterModalState (true, ModalCallbackFunction::create (myCallbackFunction, 3.0));
         @endcode
         @see ModalComponentManager::Callback
     */
@@ -185,17 +226,11 @@ public:
     static ModalComponentManager::Callback* create (void (*functionToCall) (int, ParamType),
                                                     ParamType parameterValue)
     {
-        return new FunctionCaller1<ParamType> (functionToCall, parameterValue);
+        return create ([functionToCall, parameterValue] (int r)
+        {
+            functionToCall (r, parameterValue);
+        });
     }
-
-    /** This is a utility function to create a ModalComponentManager::Callback that will
-        call a lambda function.
-        The lambda that you supply must take an integer parameter, which is the result code that
-        was returned when the modal component was dismissed.
-
-        @see ModalComponentManager::Callback
-    */
-    static ModalComponentManager::Callback* create (std::function<void(int)>);
 
     //==============================================================================
     /** This is a utility function to create a ModalComponentManager::Callback that will
@@ -215,7 +250,7 @@ public:
 
         Component* someKindOfComp;
         ...
-        someKindOfComp->enterModalState (ModalCallbackFunction::create (myCallbackFunction, 3.0, String ("xyz")));
+        someKindOfComp->enterModalState (true, ModalCallbackFunction::create (myCallbackFunction, 3.0, String ("xyz")));
         @endcode
         @see ModalComponentManager::Callback
     */
@@ -224,7 +259,10 @@ public:
                                                        ParamType1 parameterValue1,
                                                        ParamType2 parameterValue2)
     {
-        return new FunctionCaller2<ParamType1, ParamType2> (functionToCall, parameterValue1, parameterValue2);
+        return create ([functionToCall, parameterValue1, parameterValue2] (int r)
+        {
+            functionToCall (r, parameterValue1, parameterValue2);
+        });
     }
 
     //==============================================================================
@@ -246,7 +284,7 @@ public:
         Component* someKindOfComp;
         Slider* mySlider;
         ...
-        someKindOfComp->enterModalState (ModalCallbackFunction::forComponent (myCallbackFunction, mySlider));
+        someKindOfComp->enterModalState (true, ModalCallbackFunction::forComponent (myCallbackFunction, mySlider));
         @endcode
         @see ModalComponentManager::Callback
     */
@@ -254,7 +292,10 @@ public:
     static ModalComponentManager::Callback* forComponent (void (*functionToCall) (int, ComponentType*),
                                                           ComponentType* component)
     {
-        return new ComponentCaller1<ComponentType> (functionToCall, component);
+        return create ([functionToCall, comp = WeakReference<Component> { component }] (int r)
+        {
+            functionToCall (r, static_cast<ComponentType*> (comp.get()));
+        });
     }
 
     //==============================================================================
@@ -276,7 +317,7 @@ public:
         Component* someKindOfComp;
         Slider* mySlider;
         ...
-        someKindOfComp->enterModalState (ModalCallbackFunction::forComponent (myCallbackFunction, mySlider, String ("hello")));
+        someKindOfComp->enterModalState (true, ModalCallbackFunction::forComponent (myCallbackFunction, mySlider, String ("hello")));
         @endcode
         @see ModalComponentManager::Callback
     */
@@ -285,90 +326,15 @@ public:
                                                           ComponentType* component,
                                                           ParamType param)
     {
-        return new ComponentCaller2<ComponentType, ParamType> (functionToCall, component, param);
+        return create ([functionToCall, param, comp = WeakReference<Component> { component }] (int r)
+        {
+            functionToCall (r, static_cast<ComponentType*> (comp.get()), param);
+        });
     }
 
 private:
-    //==============================================================================
-    template <typename ParamType>
-    struct FunctionCaller1  : public ModalComponentManager::Callback
-    {
-        typedef void (*FunctionType) (int, ParamType);
-
-        FunctionCaller1 (FunctionType& f, ParamType& p1)
-            : function (f), param (p1) {}
-
-        void modalStateFinished (int returnValue) override  { function (returnValue, param); }
-
-    private:
-        const FunctionType function;
-        ParamType param;
-
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FunctionCaller1)
-    };
-
-    template <typename ParamType1, typename ParamType2>
-    struct FunctionCaller2  : public ModalComponentManager::Callback
-    {
-        typedef void (*FunctionType) (int, ParamType1, ParamType2);
-
-        FunctionCaller2 (FunctionType& f, ParamType1& p1, ParamType2& p2)
-            : function (f), param1 (p1), param2 (p2) {}
-
-        void modalStateFinished (int returnValue) override  { function (returnValue, param1, param2); }
-
-    private:
-        const FunctionType function;
-        ParamType1 param1;
-        ParamType2 param2;
-
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FunctionCaller2)
-    };
-
-    template <typename ComponentType>
-    struct ComponentCaller1  : public ModalComponentManager::Callback
-    {
-        typedef void (*FunctionType) (int, ComponentType*);
-
-        ComponentCaller1 (FunctionType& f, ComponentType* c)
-            : function (f), comp (c) {}
-
-        void modalStateFinished (int returnValue) override
-        {
-            function (returnValue, static_cast<ComponentType*> (comp.get()));
-        }
-
-    private:
-        const FunctionType function;
-        WeakReference<Component> comp;
-
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ComponentCaller1)
-    };
-
-    template <typename ComponentType, typename ParamType1>
-    struct ComponentCaller2  : public ModalComponentManager::Callback
-    {
-        typedef void (*FunctionType) (int, ComponentType*, ParamType1);
-
-        ComponentCaller2 (FunctionType& f, ComponentType* c, ParamType1 p1)
-            : function (f), comp (c), param1 (p1) {}
-
-        void modalStateFinished (int returnValue) override
-        {
-            function (returnValue, static_cast<ComponentType*> (comp.get()), param1);
-        }
-
-    private:
-        const FunctionType function;
-        WeakReference<Component> comp;
-        ParamType1 param1;
-
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ComponentCaller2)
-    };
-
-    ModalCallbackFunction();
-    ~ModalCallbackFunction();
-    JUCE_DECLARE_NON_COPYABLE (ModalCallbackFunction)
+    ModalCallbackFunction() = delete;
+    ~ModalCallbackFunction() = delete;
 };
 
 } // namespace juce

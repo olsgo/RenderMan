@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -29,13 +41,8 @@ class ActionListener;
 class ActionBroadcaster;
 
 //==============================================================================
-#if JUCE_MODULE_AVAILABLE_juce_opengl
-class OpenGLContext;
-#endif
-
-//==============================================================================
 /** See MessageManager::callFunctionOnMessageThread() for use of this function type. */
-typedef void* (MessageCallbackFunction) (void* userData);
+using MessageCallbackFunction = void* (void* userData);
 
 
 //==============================================================================
@@ -43,9 +50,16 @@ typedef void* (MessageCallbackFunction) (void* userData);
     This class is in charge of the application's event-dispatch loop.
 
     @see Message, CallbackMessage, MessageManagerLock, JUCEApplication, JUCEApplicationBase
+
+    @tags{Events}
 */
 class JUCE_API  MessageManager  final
 {
+    template <typename FunctionResult>
+    using CallSyncResult = std::conditional_t<std::is_same_v<FunctionResult, void>,
+                                              bool,
+                                              std::optional<FunctionResult>>;
+
 public:
     //==============================================================================
     /** Returns the global instance of the MessageManager. */
@@ -80,9 +94,9 @@ public:
 
     /** Returns true if the stopDispatchLoop() method has been called.
     */
-    bool hasStopMessageBeenSent() const noexcept        { return quitMessagePosted; }
+    bool hasStopMessageBeenSent() const noexcept        { return quitMessagePosted.get() != 0; }
 
-   #if JUCE_MODAL_LOOPS_PERMITTED || DOXYGEN
+   #if JUCE_MODAL_LOOPS_PERMITTED
     /** Synchronously dispatches messages until a given time has elapsed.
 
         Returns false if a quit message has been posted by a call to stopDispatchLoop(),
@@ -92,11 +106,25 @@ public:
    #endif
 
     //==============================================================================
-    /** Asynchronously invokes a function or C++11 lambda on the message thread. */
-    template <typename FunctionType>
-    static void callAsync (FunctionType functionToCall)
+    /** Asynchronously invokes a function or C++11 lambda on the message thread.
+
+        @param function  the function to call, which should have no arguments
+        @returns         true if the message was successfully posted to the message queue,
+                         or false otherwise.
+    */
+    template <typename Function>
+    static bool callAsync (Function&& function)
     {
-        new AsyncCallInvoker<FunctionType> (functionToCall);
+        using NonRef = std::remove_cv_t<std::remove_reference_t<Function>>;
+
+        struct AsyncCallInvoker final : public MessageBase
+        {
+            explicit AsyncCallInvoker (NonRef f) : fn (std::move (f)) {}
+            void messageCallback() override { fn(); }
+            NonRef fn;
+        };
+
+        return (new AsyncCallInvoker { std::move (function) })->post();
     }
 
     /** Calls a function using the message-thread.
@@ -118,6 +146,47 @@ public:
         @see MessageManagerLock
     */
     void* callFunctionOnMessageThread (MessageCallbackFunction* callback, void* userData);
+
+    /** Similar to callFunctionOnMessageThread(), calls a function on the message thread,
+        blocking the current thread until a result is available.
+
+        Be careful not to cause any deadlocks with this! It's easy to do - e.g. if the caller
+        thread has a critical section locked, which an unrelated message callback then tries to lock
+        before the message thread gets round to processing this callback.
+
+        @param function     the function to call, which should have no parameters
+        @returns            if function() returns void, then callSync returns a boolean where
+                            'true' indicates that the function was called successfully, and 'false'
+                            indicates that the message could not be posted.
+                            if function() returns any other type 'T', then callSync returns
+                            std::optional<T>, where the optional value will be valid if the function
+                            was called successfully, or nullopt otherwise.
+    */
+    template <typename Function>
+    static auto callSync (Function&& function) -> CallSyncResult<decltype (function())>
+    {
+        using FinalResult = CallSyncResult<decltype (function())>;
+
+        if (MessageManager::getInstance()->isThisTheMessageThread())
+            return transformResult (std::forward<Function> (function));
+
+        std::promise<FinalResult> promise;
+        auto future = promise.get_future();
+
+        const auto sent = callAsync ([p = std::move (promise), fn = std::move (function)]() mutable
+        {
+            p.set_value (transformResult (std::move (fn)));
+        });
+
+        if (! sent)
+        {
+            // Failed to post message!
+            jassertfalse;
+            return {};
+        }
+
+        return future.get();
+    }
 
     /** Returns true if the caller-thread is the message thread. */
     bool isThisTheMessageThread() const noexcept;
@@ -144,6 +213,16 @@ public:
         gains a lock while a message is being dispatched.
     */
     bool currentThreadHasLockedMessageManager() const noexcept;
+
+    /** Returns true if there's an instance of the MessageManager, and if the current thread
+        has the lock on it.
+    */
+    static bool existsAndIsLockedByCurrentThread() noexcept;
+
+    /** Returns true if there's an instance of the MessageManager, and if the current thread
+        is running it.
+    */
+    static bool existsAndIsCurrentThread() noexcept;
 
     //==============================================================================
     /** Sends a message to all other JUCE applications that are running.
@@ -174,13 +253,13 @@ public:
     class JUCE_API  MessageBase  : public ReferenceCountedObject
     {
     public:
-        MessageBase() noexcept {}
-        virtual ~MessageBase() {}
+        MessageBase() = default;
+        ~MessageBase() override = default;
 
         virtual void messageCallback() = 0;
         bool post();
 
-        typedef ReferenceCountedObjectPtr<MessageBase> Ptr;
+        using Ptr = ReferenceCountedObjectPtr<MessageBase>;
 
         JUCE_DECLARE_NON_COPYABLE (MessageBase)
     };
@@ -189,14 +268,14 @@ public:
     /** A lock you can use to lock the message manager. You can use this class with
         the RAII-based ScopedLock classes.
     */
-    class Lock
+    class JUCE_API  Lock
     {
     public:
         /**
             Creates a new critical section to exclusively access methods which can
             only be called when the message manager is locked.
 
-            Unlike CrititcalSection, multiple instances of this lock class provide
+            Unlike CriticalSection, multiple instances of this lock class provide
             exclusive access to a single resource - the MessageManager.
         */
         Lock();
@@ -211,14 +290,14 @@ public:
             If another thread is currently using the MessageManager, this will wait until that
             thread releases the lock to the MessageManager.
 
-            This call will only exit if the lock was accquired by this thread. Calling abort while
+            This call will only exit if the lock was acquired by this thread. Calling abort while
             a thread is waiting for enter to finish, will have no effect.
 
             @see exit, abort
          */
          void enter() const noexcept;
 
-         /** Attempts to lock the meesage manager and exits if abort is called.
+         /** Attempts to lock the message manager and exits if abort is called.
 
             This method behaves identically to enter, except that it will abort waiting for
             the lock if the abort method is called.
@@ -258,7 +337,7 @@ public:
                  messageManagerLock.abort();
             }
 
-            @returns false if waiting for a lock was aborted, true if the lock was accquired.
+            @returns false if waiting for a lock was aborted, true if the lock was acquired.
             @see enter, abort, ScopedTryLock
         */
         bool tryEnter() const noexcept;
@@ -271,32 +350,42 @@ public:
         /** Unblocks a thread which is waiting in tryEnter
             Call this method if you want to unblock a thread which is waiting for the
             MessageManager lock in tryEnter.
-            This method does not have any effetc on a thread waiting for a lock in enter.
+            This method does not have any effect on a thread waiting for a lock in enter.
             @see tryEnter
         */
         void abort() const noexcept;
 
         //==============================================================================
         /** Provides the type of scoped lock to use with a CriticalSection. */
-        typedef GenericScopedLock<Lock>       ScopedLockType;
+        using ScopedLockType = GenericScopedLock<Lock>;
 
         /** Provides the type of scoped unlocker to use with a CriticalSection. */
-        typedef GenericScopedUnlock<Lock>     ScopedUnlockType;
+        using ScopedUnlockType = GenericScopedUnlock<Lock>;
 
         /** Provides the type of scoped try-locker to use with a CriticalSection. */
-        typedef GenericScopedTryLock<Lock>    ScopedTryLockType;
+        using ScopedTryLockType = GenericScopedTryLock<Lock>;
 
     private:
         struct BlockingMessage;
         friend class ReferenceCountedObjectPtr<BlockingMessage>;
 
+        bool exclusiveTryAcquire (bool) const noexcept;
         bool tryAcquire (bool) const noexcept;
-        void messageCallback() const;
+
+        void setAcquired (bool success) const noexcept;
 
         //==============================================================================
+        // This mutex is used to make this lock type behave like a normal mutex.
+        // If multiple threads call enter() simultaneously, only one will succeed in gaining
+        // this mutex. The mutex is released again in exit().
+        mutable CriticalSection entryMutex;
+
+        // This mutex protects the other data members of the lock from concurrent access, which
+        // happens when the BlockingMessage calls setAcquired to indicate that the lock was gained.
+        mutable std::mutex mutex;
         mutable ReferenceCountedObjectPtr<BlockingMessage> blockingMessage;
-        WaitableEvent lockedEvent;
-        mutable Atomic<int> abortWait, lockGained;
+        mutable std::condition_variable condvar;
+        mutable bool abortWait = false, acquired = false;
     };
 
     //==============================================================================
@@ -317,26 +406,30 @@ private:
     friend class QuitMessage;
     friend class MessageManagerLock;
 
-    ScopedPointer<ActionBroadcaster> broadcaster;
-    bool quitMessagePosted = false, quitMessageReceived = false;
+    std::unique_ptr<ActionBroadcaster> broadcaster;
+    Atomic<int> quitMessagePosted { 0 }, quitMessageReceived { 0 };
     Thread::ThreadID messageThreadId;
     Atomic<Thread::ThreadID> threadWithLock;
+    mutable std::mutex messageThreadIdMutex;
+
+    template <typename Function>
+    static auto transformResult (Function&& f)
+    {
+        if constexpr (std::is_same_v<decltype (f()), void>)
+        {
+            f();
+            return true;
+        }
+        else
+        {
+            return f();
+        }
+    }
 
     static bool postMessageToSystemQueue (MessageBase*);
     static void* exitModalLoopCallback (void*);
     static void doPlatformSpecificInitialisation();
     static void doPlatformSpecificShutdown();
-    static bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages);
-
-    template <typename FunctionType>
-    struct AsyncCallInvoker  : public MessageBase
-    {
-        AsyncCallInvoker (FunctionType f) : callback (f)  { post(); }
-        void messageCallback() override                   { callback(); }
-        FunctionType callback;
-
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AsyncCallInvoker)
-    };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MessageManager)
 };
@@ -376,6 +469,8 @@ private:
     you'll get an (occasional) deadlock..
 
     @see MessageManager, MessageManager::currentThreadHasLockedMessageManager
+
+    @tags{Events}
 */
 class JUCE_API MessageManagerLock      : private Thread::Listener
 {
@@ -438,7 +533,7 @@ public:
         Make sure this object is created and deleted by the same thread,
         otherwise there are no guarantees what will happen!
    */
-    ~MessageManagerLock() noexcept;
+    ~MessageManagerLock() override;
 
     //==============================================================================
     /** Returns true if the lock was successfully acquired.
@@ -457,5 +552,29 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE (MessageManagerLock)
 };
+
+//==============================================================================
+/** This macro is used to catch unsafe use of functions which expect to only be called
+    on the message thread, or when a MessageManagerLock is in place.
+    It will also fail if you try to use the function before the message manager has been
+    created, which could happen if you accidentally invoke it during a static constructor.
+*/
+#define JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED \
+    jassert (juce::MessageManager::existsAndIsLockedByCurrentThread());
+
+/** This macro is used to catch unsafe use of functions which expect to only be called
+    on the message thread.
+    It will also fail if you try to use the function before the message manager has been
+    created, which could happen if you accidentally invoke it during a static constructor.
+*/
+#define JUCE_ASSERT_MESSAGE_THREAD \
+    jassert (juce::MessageManager::existsAndIsCurrentThread());
+
+/** This macro is used to catch unsafe use of functions which expect to not be called
+    outside the lifetime of the MessageManager.
+*/
+#define JUCE_ASSERT_MESSAGE_MANAGER_EXISTS \
+    jassert (juce::MessageManager::getInstanceWithoutCreating() != nullptr);
+
 
 } // namespace juce

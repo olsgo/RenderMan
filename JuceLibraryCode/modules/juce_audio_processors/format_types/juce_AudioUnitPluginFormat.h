@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -32,16 +40,22 @@ namespace juce
 //==============================================================================
 /**
     Implements a plugin format manager for AudioUnits.
+
+    @tags{Audio}
 */
 class JUCE_API  AudioUnitPluginFormat   : public AudioPluginFormat
 {
 public:
     //==============================================================================
     AudioUnitPluginFormat();
-    ~AudioUnitPluginFormat();
+    ~AudioUnitPluginFormat() override;
 
     //==============================================================================
-    String getName() const override                { return "AudioUnit"; }
+    static String getFormatName()                   { return "AudioUnit"; }
+    String getName() const override                 { return getFormatName(); }
+    bool canScanForPlugins() const override         { return true; }
+    bool isTrivialToScan() const override           { return false; }
+
     void findAllTypesForFile (OwnedArray<PluginDescription>&, const String& fileOrIdentifier) override;
     bool fileMightContainThisPluginType (const String& fileOrIdentifier) override;
     String getNameOfPluginFromIdentifier (const String& fileOrIdentifier) override;
@@ -49,31 +63,17 @@ public:
     StringArray searchPathsForPlugins (const FileSearchPath&, bool recursive, bool) override;
     bool doesPluginStillExist (const PluginDescription&) override;
     FileSearchPath getDefaultLocationsToSearch() override;
-    bool canScanForPlugins() const override        { return true; }
+    void createARAFactoryAsync (const PluginDescription&, ARAFactoryCreationCallback callback) override;
 
 private:
     //==============================================================================
-    void createPluginInstance (const PluginDescription&,
-                               double initialSampleRate,
-                               int initialBufferSize,
-                               void* userData,
-                               void (*callback) (void*, AudioPluginInstance*, const String&)) override;
+    void createPluginInstance (const PluginDescription&, double initialSampleRate,
+                               int initialBufferSize, PluginCreationCallback) override;
+    bool requiresUnblockedMessageThreadDuringCreation (const PluginDescription&) const override;
 
-    bool requiresUnblockedMessageThreadDuringCreation (const PluginDescription&) const noexcept override;
-
-    //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioUnitPluginFormat)
 };
 
-#endif
-
-//==============================================================================
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
-enum
-{
-    /** Custom AudioUnit property used to indicate MPE support */
-    kAudioUnitProperty_SupportsMPE = 58
-};
 #endif
 
 }

@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -48,7 +56,7 @@ KeyPressMappingSet::~KeyPressMappingSet()
 Array<KeyPress> KeyPressMappingSet::getKeyPressesAssignedToCommand (const CommandID commandID) const
 {
     for (int i = 0; i < mappings.size(); ++i)
-        if (mappings.getUnchecked(i)->commandID == commandID)
+        if (mappings.getUnchecked (i)->commandID == commandID)
             return mappings.getUnchecked (i)->keypresses;
 
     return {};
@@ -67,9 +75,9 @@ void KeyPressMappingSet::addKeyPress (const CommandID commandID, const KeyPress&
         {
             for (int i = mappings.size(); --i >= 0;)
             {
-                if (mappings.getUnchecked(i)->commandID == commandID)
+                if (mappings.getUnchecked (i)->commandID == commandID)
                 {
-                    mappings.getUnchecked(i)->keypresses.insert (insertIndex, newKeyPress);
+                    mappings.getUnchecked (i)->keypresses.insert (insertIndex, newKeyPress);
 
                     sendChangeMessage();
                     return;
@@ -133,7 +141,7 @@ void KeyPressMappingSet::clearAllKeyPresses (const CommandID commandID)
 {
     for (int i = mappings.size(); --i >= 0;)
     {
-        if (mappings.getUnchecked(i)->commandID == commandID)
+        if (mappings.getUnchecked (i)->commandID == commandID)
         {
             mappings.remove (i);
             sendChangeMessage();
@@ -147,7 +155,7 @@ void KeyPressMappingSet::removeKeyPress (const KeyPress& keypress)
     {
         for (int i = mappings.size(); --i >= 0;)
         {
-            CommandMapping& cm = *mappings.getUnchecked(i);
+            CommandMapping& cm = *mappings.getUnchecked (i);
 
             for (int j = cm.keypresses.size(); --j >= 0;)
             {
@@ -165,9 +173,9 @@ void KeyPressMappingSet::removeKeyPress (const CommandID commandID, const int ke
 {
     for (int i = mappings.size(); --i >= 0;)
     {
-        if (mappings.getUnchecked(i)->commandID == commandID)
+        if (mappings.getUnchecked (i)->commandID == commandID)
         {
-            mappings.getUnchecked(i)->keypresses.remove (keyPressIndex);
+            mappings.getUnchecked (i)->keypresses.remove (keyPressIndex);
             sendChangeMessage();
             break;
         }
@@ -178,8 +186,8 @@ void KeyPressMappingSet::removeKeyPress (const CommandID commandID, const int ke
 CommandID KeyPressMappingSet::findCommandForKeyPress (const KeyPress& keyPress) const noexcept
 {
     for (int i = 0; i < mappings.size(); ++i)
-        if (mappings.getUnchecked(i)->keypresses.contains (keyPress))
-            return mappings.getUnchecked(i)->commandID;
+        if (mappings.getUnchecked (i)->keypresses.contains (keyPress))
+            return mappings.getUnchecked (i)->commandID;
 
     return 0;
 }
@@ -187,8 +195,8 @@ CommandID KeyPressMappingSet::findCommandForKeyPress (const KeyPress& keyPress) 
 bool KeyPressMappingSet::containsMapping (const CommandID commandID, const KeyPress& keyPress) const noexcept
 {
     for (int i = mappings.size(); --i >= 0;)
-        if (mappings.getUnchecked(i)->commandID == commandID)
-            return mappings.getUnchecked(i)->keypresses.contains (keyPress);
+        if (mappings.getUnchecked (i)->commandID == commandID)
+            return mappings.getUnchecked (i)->keypresses.contains (keyPress);
 
     return false;
 }
@@ -228,13 +236,13 @@ bool KeyPressMappingSet::restoreFromXml (const XmlElement& xmlVersion)
             clearAllKeyPresses();
         }
 
-        forEachXmlChildElement (xmlVersion, map)
+        for (auto* map : xmlVersion.getChildIterator())
         {
             const CommandID commandId = map->getStringAttribute ("commandId").getHexValue32();
 
             if (commandId != 0)
             {
-                const KeyPress key (KeyPress::createFromDescription (map->getStringAttribute ("key")));
+                auto key = KeyPress::createFromDescription (map->getStringAttribute ("key"));
 
                 if (map->hasTagName ("MAPPING"))
                 {
@@ -242,9 +250,9 @@ bool KeyPressMappingSet::restoreFromXml (const XmlElement& xmlVersion)
                 }
                 else if (map->hasTagName ("UNMAPPING"))
                 {
-                    for (int i = mappings.size(); --i >= 0;)
-                        if (mappings.getUnchecked(i)->commandID == commandId)
-                            mappings.getUnchecked(i)->keypresses.removeAllInstancesOf (key);
+                    for (auto& m : mappings)
+                        if (m->commandID == commandId)
+                            m->keypresses.removeAllInstancesOf (key);
                 }
             }
         }
@@ -255,30 +263,30 @@ bool KeyPressMappingSet::restoreFromXml (const XmlElement& xmlVersion)
     return false;
 }
 
-XmlElement* KeyPressMappingSet::createXml (const bool saveDifferencesFromDefaultSet) const
+std::unique_ptr<XmlElement> KeyPressMappingSet::createXml (const bool saveDifferencesFromDefaultSet) const
 {
-    ScopedPointer<KeyPressMappingSet> defaultSet;
+    std::unique_ptr<KeyPressMappingSet> defaultSet;
 
     if (saveDifferencesFromDefaultSet)
     {
-        defaultSet = new KeyPressMappingSet (commandManager);
+        defaultSet = std::make_unique<KeyPressMappingSet> (commandManager);
         defaultSet->resetToDefaultMappings();
     }
 
-    XmlElement* const doc = new XmlElement ("KEYMAPPINGS");
+    auto doc = std::make_unique<XmlElement> ("KEYMAPPINGS");
 
     doc->setAttribute ("basedOnDefaults", saveDifferencesFromDefaultSet);
 
     for (int i = 0; i < mappings.size(); ++i)
     {
-        const CommandMapping& cm = *mappings.getUnchecked(i);
+        auto& cm = *mappings.getUnchecked (i);
 
         for (int j = 0; j < cm.keypresses.size(); ++j)
         {
             if (defaultSet == nullptr
                  || ! defaultSet->containsMapping (cm.commandID, cm.keypresses.getReference (j)))
             {
-                XmlElement* const map = doc->createNewChildElement ("MAPPING");
+                auto map = doc->createNewChildElement ("MAPPING");
 
                 map->setAttribute ("commandId", String::toHexString ((int) cm.commandID));
                 map->setAttribute ("description", commandManager.getDescriptionOfCommand (cm.commandID));
@@ -291,13 +299,13 @@ XmlElement* KeyPressMappingSet::createXml (const bool saveDifferencesFromDefault
     {
         for (int i = 0; i < defaultSet->mappings.size(); ++i)
         {
-            const CommandMapping& cm = *defaultSet->mappings.getUnchecked(i);
+            auto& cm = *defaultSet->mappings.getUnchecked (i);
 
             for (int j = 0; j < cm.keypresses.size(); ++j)
             {
                 if (! containsMapping (cm.commandID, cm.keypresses.getReference (j)))
                 {
-                    XmlElement* const map = doc->createNewChildElement ("UNMAPPING");
+                    auto map = doc->createNewChildElement ("UNMAPPING");
 
                     map->setAttribute ("commandId", String::toHexString ((int) cm.commandID));
                     map->setAttribute ("description", commandManager.getDescriptionOfCommand (cm.commandID));
@@ -317,7 +325,7 @@ bool KeyPressMappingSet::keyPressed (const KeyPress& key, Component* const origi
 
     for (int i = 0; i < mappings.size(); ++i)
     {
-        CommandMapping& cm = *mappings.getUnchecked(i);
+        CommandMapping& cm = *mappings.getUnchecked (i);
 
         if (cm.keypresses.contains (key))
         {
@@ -355,7 +363,7 @@ bool KeyPressMappingSet::keyStateChanged (const bool /*isKeyDown*/, Component* o
 
     for (int i = mappings.size(); --i >= 0;)
     {
-        CommandMapping& cm = *mappings.getUnchecked(i);
+        CommandMapping& cm = *mappings.getUnchecked (i);
 
         if (cm.wantsKeyUpDownCallbacks)
         {
@@ -369,7 +377,7 @@ bool KeyPressMappingSet::keyStateChanged (const bool /*isKeyDown*/, Component* o
 
                 for (int k = keysDown.size(); --k >= 0;)
                 {
-                    if (key == keysDown.getUnchecked(k)->key)
+                    if (key == keysDown.getUnchecked (k)->key)
                     {
                         keyPressEntryIndex = k;
                         wasDown = true;

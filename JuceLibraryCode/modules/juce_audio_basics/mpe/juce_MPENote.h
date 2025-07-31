@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -33,23 +45,26 @@ namespace juce
     MPEValue objects.
 
     @see MPEValue
+
+    @tags{Audio}
 */
 struct JUCE_API  MPENote
 {
     //==============================================================================
+    /** Possible values for the note key state. */
     enum KeyState
     {
-        off                  = 0,
-        keyDown              = 1,
-        sustained            = 2,
-        keyDownAndSustained  = 3
+        off                  = 0, /**< The key is up (off). */
+        keyDown              = 1, /**< The note key is currently down (pressed). */
+        sustained            = 2, /**< The note is sustained (by a sustain or sostenuto pedal). */
+        keyDownAndSustained  = 3  /**< The note key is down and sustained (by a sustain or sostenuto pedal). */
     };
 
     //==============================================================================
     /** Constructor.
 
-        @param midiChannel    The MIDI channel of the note, between 2 and 16.
-                              (Channel 1 can never be a note channel in MPE).
+        @param midiChannel    The MIDI channel of the note, between 2 and 15.
+                              (Channel 1 and channel 16 can never be note channels in MPE).
 
         @param initialNote    The MIDI note number, between 0 and 127.
 
@@ -64,7 +79,7 @@ struct JUCE_API  MPENote
         @param keyState       The key state of the note (whether the key is down
                               and/or the note is sustained). This value must not
                               be MPENote::off, since you are triggering a new note.
-                              (If not specified, the default value will be MPENOte::keyDown.)
+                              (If not specified, the default value will be MPENote::keyDown.)
     */
     MPENote (int midiChannel,
              int initialNote,
@@ -92,17 +107,17 @@ struct JUCE_API  MPENote
         sounding notes that may use the same note number or MIDI channel.
         This should never change during the lifetime of a note object.
     */
-    uint16 noteID;
+    uint16 noteID = 0;
 
     /** The MIDI channel which this note uses.
         This should never change during the lifetime of an MPENote object.
     */
-    uint8 midiChannel;
+    uint8 midiChannel = 0;
 
     /** The MIDI note number that was sent when the note was triggered.
         This should never change during the lifetime of an MPENote object.
     */
-    uint8 initialNote;
+    uint8 initialNote = 0;
 
     //==============================================================================
     // The five dimensions of continuous expressive control
@@ -110,9 +125,9 @@ struct JUCE_API  MPENote
     /** The velocity ("strike") of the note-on.
         This dimension will stay constant after the note has been turned on.
     */
-    MPEValue noteOnVelocity;
+    MPEValue noteOnVelocity  { MPEValue::minValue() };
 
-    /** Current per-note pitchbend of the note  (in units of MIDI pitchwheel
+    /** Current per-note pitchbend of the note (in units of MIDI pitchwheel
         position). This dimension can be modulated while the note sounds.
 
         Note: This value is not aware of the currently used pitchbend range,
@@ -122,26 +137,31 @@ struct JUCE_API  MPENote
 
         @see totalPitchbendInSemitones, getFrequencyInHertz
     */
-    MPEValue pitchbend;
+    MPEValue pitchbend       { MPEValue::centreValue() };
 
     /** Current pressure with which the note is held down.
         This dimension can be modulated while the note sounds.
     */
-    MPEValue pressure;
+    MPEValue pressure        { MPEValue::centreValue() };
 
-    /** Current value of the note's third expressive dimension, tyically
-         encoding some kind of timbre parameter.
+    /** Initial value of timbre when the note was triggered.
+        This should never change during the lifetime of an MPENote object.
+    */
+    MPEValue initialTimbre   { MPEValue::centreValue() };
+
+    /** Current value of the note's third expressive dimension, typically
+        encoding some kind of timbre parameter.
         This dimension can be modulated while the note sounds.
     */
-    MPEValue timbre;
+    MPEValue timbre          { MPEValue::centreValue() };
 
     /** The release velocity ("lift") of the note after a note-off has been
         received.
         This dimension will only have a meaningful value after a note-off has
         been received for the note (and keyState is set to MPENote::off or
-        MPENOte::sustained). Initially, the value is undefined.
+        MPENote::sustained). Initially, the value is undefined.
     */
-    MPEValue noteOffVelocity;
+    MPEValue noteOffVelocity { MPEValue::minValue() };
 
     //==============================================================================
     /** Current effective pitchbend of the note in units of semitones, relative
@@ -158,10 +178,10 @@ struct JUCE_API  MPENote
     /** Current key state. Indicates whether the note key is currently down (pressed)
         and/or the note is sustained (by a sustain or sostenuto pedal).
     */
-    KeyState keyState;
+    KeyState keyState        { MPENote::off };
 
     //==============================================================================
-    /** Returns the current frequency of the note in Hertz. This is the a sum of
+    /** Returns the current frequency of the note in Hertz. This is the sum of
         the initialNote and the totalPitchbendInSemitones, converted to Hertz.
     */
     double getFrequencyInHertz (double frequencyOfA = 440.0) const noexcept;

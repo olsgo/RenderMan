@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -27,7 +35,7 @@
 namespace juce
 {
 
-class DocumentWindow::ButtonListenerProxy  : public Button::Listener
+class DocumentWindow::ButtonListenerProxy final : public Button::Listener
 {
 public:
     ButtonListenerProxy (DocumentWindow& w) : owner (w) {}
@@ -68,15 +76,15 @@ DocumentWindow::~DocumentWindow()
     // Don't delete or remove the resizer components yourself! They're managed by the
     // DocumentWindow, and you should leave them alone! You may have deleted them
     // accidentally by careless use of deleteAllChildren()..?
-    jassert (menuBar == nullptr || getIndexOfChildComponent (menuBar) >= 0);
-    jassert (titleBarButtons[0] == nullptr || getIndexOfChildComponent (titleBarButtons[0]) >= 0);
-    jassert (titleBarButtons[1] == nullptr || getIndexOfChildComponent (titleBarButtons[1]) >= 0);
-    jassert (titleBarButtons[2] == nullptr || getIndexOfChildComponent (titleBarButtons[2]) >= 0);
+    jassert (menuBar == nullptr || getIndexOfChildComponent (menuBar.get()) >= 0);
+    jassert (titleBarButtons[0] == nullptr || getIndexOfChildComponent (titleBarButtons[0].get()) >= 0);
+    jassert (titleBarButtons[1] == nullptr || getIndexOfChildComponent (titleBarButtons[1].get()) >= 0);
+    jassert (titleBarButtons[2] == nullptr || getIndexOfChildComponent (titleBarButtons[2].get()) >= 0);
 
     for (auto& b : titleBarButtons)
-        b = nullptr;
+        b.reset();
 
-    menuBar = nullptr;
+    menuBar.reset();
 }
 
 //==============================================================================
@@ -125,7 +133,7 @@ void DocumentWindow::setMenuBar (MenuBarModel* newMenuBarModel, const int newMen
 {
     if (menuBarModel != newMenuBarModel)
     {
-        menuBar = nullptr;
+        menuBar.reset();
 
         menuBarModel = newMenuBarModel;
         menuBarHeight = newMenuBarHeight > 0 ? newMenuBarHeight
@@ -140,13 +148,13 @@ void DocumentWindow::setMenuBar (MenuBarModel* newMenuBarModel, const int newMen
 
 Component* DocumentWindow::getMenuBarComponent() const noexcept
 {
-    return menuBar;
+    return menuBar.get();
 }
 
 void DocumentWindow::setMenuBarComponent (Component* newMenuBarComponent)
 {
-    // (call the Component method directly to avoid the assertion in ResizableWindow)
-    Component::addAndMakeVisible (menuBar = newMenuBarComponent);
+    menuBar.reset (newMenuBarComponent);
+    Component::addAndMakeVisible (menuBar.get()); // (call the superclass method directly to avoid the assertion in ResizableWindow)
 
     if (menuBar != nullptr)
         menuBar->setEnabled (isActiveWindow());
@@ -184,6 +192,21 @@ void DocumentWindow::maximiseButtonPressed()
     setFullScreen (! isFullScreen());
 }
 
+void DocumentWindow::windowControlClickedClose()
+{
+    closeButtonPressed();
+}
+
+void DocumentWindow::windowControlClickedMinimise()
+{
+    minimiseButtonPressed();
+}
+
+void DocumentWindow::windowControlClickedMaximise()
+{
+    maximiseButtonPressed();
+}
+
 //==============================================================================
 void DocumentWindow::paint (Graphics& g)
 {
@@ -212,7 +235,7 @@ void DocumentWindow::paint (Graphics& g)
                                                  titleBarArea.getHeight(),
                                                  titleSpaceX1,
                                                  jmax (1, titleSpaceX2 - titleSpaceX1),
-                                                 titleBarIcon.isValid() ? &titleBarIcon : 0,
+                                                 titleBarIcon.isValid() ? &titleBarIcon : nullptr,
                                                  ! drawTitleTextCentred);
 }
 
@@ -229,9 +252,9 @@ void DocumentWindow::resized()
         .positionDocumentWindowButtons (*this,
                                         titleBarArea.getX(), titleBarArea.getY(),
                                         titleBarArea.getWidth(), titleBarArea.getHeight(),
-                                        titleBarButtons[0],
-                                        titleBarButtons[1],
-                                        titleBarButtons[2],
+                                        titleBarButtons[0].get(),
+                                        titleBarButtons[1].get(),
+                                        titleBarButtons[2].get(),
                                         positionTitleBarButtonsOnLeft);
 
     if (menuBar != nullptr)
@@ -239,12 +262,7 @@ void DocumentWindow::resized()
                             titleBarArea.getWidth(), menuBarHeight);
 }
 
-BorderSize<int> DocumentWindow::getBorderThickness()
-{
-    return ResizableWindow::getBorderThickness();
-}
-
-BorderSize<int> DocumentWindow::getContentComponentBorder()
+BorderSize<int> DocumentWindow::getContentComponentBorder() const
 {
     auto border = getBorderThickness();
 
@@ -261,7 +279,7 @@ int DocumentWindow::getTitleBarHeight() const
     return isUsingNativeTitleBar() ? 0 : jmin (titleBarHeight, getHeight() - 4);
 }
 
-Rectangle<int> DocumentWindow::getTitleBarArea()
+Rectangle<int> DocumentWindow::getTitleBarArea() const
 {
     if (isKioskMode())
         return {};
@@ -270,9 +288,68 @@ Rectangle<int> DocumentWindow::getTitleBarArea()
     return { border.getLeft(), border.getTop(), getWidth() - border.getLeftAndRight(), getTitleBarHeight() };
 }
 
-Button* DocumentWindow::getCloseButton()    const noexcept  { return titleBarButtons[2]; }
-Button* DocumentWindow::getMinimiseButton() const noexcept  { return titleBarButtons[0]; }
-Button* DocumentWindow::getMaximiseButton() const noexcept  { return titleBarButtons[1]; }
+auto DocumentWindow::findControlAtPoint (Point<float> pt) const -> WindowControlKind
+{
+    if (resizableBorder != nullptr)
+    {
+        using Zone = ResizableBorderComponent::Zone;
+        const auto zone = Zone::fromPositionOnBorder (getLocalBounds(),
+                                                      resizableBorder->getBorderThickness(),
+                                                      pt.roundToInt());
+
+        switch (zone.getZoneFlags())
+        {
+            case Zone::top: return WindowControlKind::sizeTop;
+            case Zone::left: return WindowControlKind::sizeLeft;
+            case Zone::right: return WindowControlKind::sizeRight;
+            case Zone::bottom: return WindowControlKind::sizeBottom;
+
+            case Zone::top | Zone::left: return WindowControlKind::sizeTopLeft;
+            case Zone::top | Zone::right: return WindowControlKind::sizeTopRight;
+            case Zone::bottom | Zone::left: return WindowControlKind::sizeBottomLeft;
+            case Zone::bottom | Zone::right: return WindowControlKind::sizeBottomRight;
+        }
+    }
+
+    const auto topArea = getTitleBarArea().withTop (0);
+
+    if (! topArea.toFloat().contains (pt))
+        return WindowControlKind::client;
+
+    for (const auto& [control, kind] : { std::tuple (getMinimiseButton(), WindowControlKind::minimise),
+                                         std::tuple (getMaximiseButton(), WindowControlKind::maximise),
+                                         std::tuple (getCloseButton(),    WindowControlKind::close) })
+    {
+        if (control != nullptr && control->contains (control->getLocalPoint (this, pt)))
+            return kind;
+    }
+
+    // Add a few pixels for the top resizer, because Windows 11 expects the top resizer to be inside
+    // the window, unlike the resizers on the bottom/left/right.
+    constexpr auto topResizerSize = 4;
+    const auto topResizerArea = getLocalBounds().withHeight (topResizerSize).toFloat();
+
+    if (topResizerArea.contains (pt))
+    {
+        if (pt.x <= topResizerArea.getX() + topResizerSize)
+            return WindowControlKind::sizeTopLeft;
+
+        if (topResizerArea.getRight() - topResizerSize <= pt.x)
+            return WindowControlKind::sizeTopRight;
+
+        return WindowControlKind::sizeTop;
+    }
+
+    for (const auto& c : getChildren())
+        if (detail::ComponentHelpers::hitTest (*c, c->getLocalPoint (this, pt)))
+            return WindowControlKind::client;
+
+    return WindowControlKind::caption;
+}
+
+Button* DocumentWindow::getCloseButton()    const noexcept  { return titleBarButtons[2].get(); }
+Button* DocumentWindow::getMinimiseButton() const noexcept  { return titleBarButtons[0].get(); }
+Button* DocumentWindow::getMaximiseButton() const noexcept  { return titleBarButtons[1].get(); }
 
 int DocumentWindow::getDesktopWindowStyleFlags() const
 {
@@ -288,28 +365,28 @@ int DocumentWindow::getDesktopWindowStyleFlags() const
 void DocumentWindow::lookAndFeelChanged()
 {
     for (auto& b : titleBarButtons)
-        b = nullptr;
+        b.reset();
 
     if (! isUsingNativeTitleBar())
     {
-        LookAndFeel& lf = getLookAndFeel();
+        auto& lf = getLookAndFeel();
 
-        if ((requiredButtons & minimiseButton) != 0)  titleBarButtons[0] = lf.createDocumentWindowButton (minimiseButton);
-        if ((requiredButtons & maximiseButton) != 0)  titleBarButtons[1] = lf.createDocumentWindowButton (maximiseButton);
-        if ((requiredButtons & closeButton)    != 0)  titleBarButtons[2] = lf.createDocumentWindowButton (closeButton);
+        if ((requiredButtons & minimiseButton) != 0)  titleBarButtons[0].reset (lf.createDocumentWindowButton (minimiseButton));
+        if ((requiredButtons & maximiseButton) != 0)  titleBarButtons[1].reset (lf.createDocumentWindowButton (maximiseButton));
+        if ((requiredButtons & closeButton)    != 0)  titleBarButtons[2].reset (lf.createDocumentWindowButton (closeButton));
 
         for (auto& b : titleBarButtons)
         {
             if (b != nullptr)
             {
                 if (buttonListener == nullptr)
-                    buttonListener = new ButtonListenerProxy (*this);
+                    buttonListener.reset (new ButtonListenerProxy (*this));
 
-                b->addListener (buttonListener);
+                b->addListener (buttonListener.get());
                 b->setWantsKeyboardFocus (false);
 
                 // (call the Component method directly to avoid the assertion in ResizableWindow)
-                Component::addAndMakeVisible (b);
+                Component::addAndMakeVisible (b.get());
             }
         }
 

@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -30,12 +42,14 @@ namespace juce
     some or all of the virtual functions to implement their behaviour.
 
     @see OutputStream, MemoryInputStream, BufferedInputStream, FileInputStream
+
+    @tags{Core}
 */
 class JUCE_API  InputStream
 {
 public:
     /** Destructor. */
-    virtual ~InputStream()  {}
+    virtual ~InputStream() = default;
 
     //==============================================================================
     /** Returns the total number of bytes available for reading in this stream.
@@ -74,6 +88,8 @@ public:
                     maxBytesToRead if the stream is exhausted before it gets that far
     */
     virtual int read (void* destBuffer, int maxBytesToRead) = 0;
+
+    ssize_t read (void* destBuffer, size_t maxBytesToRead);
 
     /** Reads a byte from the stream.
         If the stream is exhausted, this will return zero.
@@ -241,16 +257,17 @@ public:
 
     /** Reads and discards a number of bytes from the stream.
 
-        Some input streams might implement this efficiently, but the base
+        Some input streams might implement this more efficiently, but the base
         class will just keep reading data until the requisite number of bytes
-        have been done.
+        have been done. For large skips it may be quicker to call setPosition()
+        with the required position.
     */
     virtual void skipNextBytes (int64 numBytesToSkip);
 
 
 protected:
     //==============================================================================
-    InputStream() noexcept {}
+    InputStream() = default;
 
 private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (InputStream)

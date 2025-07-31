@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -30,6 +38,8 @@ namespace juce
 //==============================================================================
 /**
     A three-coordinate vector.
+
+    @tags{OpenGL}
 */
 template <typename Type>
 class Vector3D
@@ -41,28 +51,28 @@ public:
     Vector3D& operator= (Vector3D other) noexcept              { x = other.x;  y = other.y;  z = other.z; return *this; }
 
     /** Returns a vector that lies along the X axis. */
-    static Vector3D xAxis() noexcept                        { return Vector3D ((Type) 1, 0, 0); }
+    static Vector3D xAxis() noexcept                        { return { (Type) 1, 0, 0 }; }
     /** Returns a vector that lies along the Y axis. */
-    static Vector3D yAxis() noexcept                        { return Vector3D (0, (Type) 1, 0); }
+    static Vector3D yAxis() noexcept                        { return { 0, (Type) 1, 0 }; }
     /** Returns a vector that lies along the Z axis. */
-    static Vector3D zAxis() noexcept                        { return Vector3D (0, 0, (Type) 1); }
+    static Vector3D zAxis() noexcept                        { return { 0, 0, (Type) 1 }; }
 
     Vector3D& operator+= (Vector3D other) noexcept          { x += other.x;  y += other.y;  z += other.z;  return *this; }
     Vector3D& operator-= (Vector3D other) noexcept          { x -= other.x;  y -= other.y;  z -= other.z;  return *this; }
     Vector3D& operator*= (Type scaleFactor) noexcept        { x *= scaleFactor;  y *= scaleFactor;  z *= scaleFactor;  return *this; }
     Vector3D& operator/= (Type scaleFactor) noexcept        { x /= scaleFactor;  y /= scaleFactor;  z /= scaleFactor;  return *this; }
 
-    Vector3D operator+ (Vector3D other) const noexcept      { return Vector3D (x + other.x, y + other.y, z + other.z); }
-    Vector3D operator- (Vector3D other) const noexcept      { return Vector3D (x - other.x, y - other.y, z - other.z); }
-    Vector3D operator* (Type scaleFactor) const noexcept    { return Vector3D (x * scaleFactor, y * scaleFactor, z * scaleFactor); }
-    Vector3D operator/ (Type scaleFactor) const noexcept    { return Vector3D (x / scaleFactor, y / scaleFactor, z / scaleFactor); }
-    Vector3D operator-() const noexcept                     { return Vector3D (-x, -y, -z); }
+    Vector3D operator+ (Vector3D other) const noexcept      { return { x + other.x, y + other.y, z + other.z }; }
+    Vector3D operator- (Vector3D other) const noexcept      { return { x - other.x, y - other.y, z - other.z }; }
+    Vector3D operator* (Type scaleFactor) const noexcept    { return { x * scaleFactor, y * scaleFactor, z * scaleFactor }; }
+    Vector3D operator/ (Type scaleFactor) const noexcept    { return { x / scaleFactor, y / scaleFactor, z / scaleFactor }; }
+    Vector3D operator-() const noexcept                     { return { -x, -y, -z }; }
 
     /** Returns the dot-product of these two vectors. */
     Type operator* (Vector3D other) const noexcept          { return x * other.x + y * other.y + z * other.z; }
 
     /** Returns the cross-product of these two vectors. */
-    Vector3D operator^ (Vector3D other) const noexcept      { return Vector3D (y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x); }
+    Vector3D operator^ (Vector3D other) const noexcept      { return { y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x }; }
 
     Type length() const noexcept                            { return std::sqrt (lengthSquared()); }
     Type lengthSquared() const noexcept                     { return x * x + y * y + z * z; }
@@ -72,7 +82,7 @@ public:
     /** Returns true if the vector is practically equal to the origin. */
     bool lengthIsBelowEpsilon() const noexcept
     {
-        const Type epsilon (std::numeric_limits<Type>::epsilon());
+        auto epsilon = std::numeric_limits<Type>::epsilon();
         return ! (x < -epsilon || x > epsilon || y < -epsilon || y > epsilon || z < -epsilon || z > epsilon);
     }
 

@@ -38,9 +38,10 @@ std::string RenderEngine::getAvailablePluginsXml(const std::string& path) {
     KnownPluginList pluginList;
     fillAvailablePluginsInfo(path, pluginFormatManager, pluginDescriptions, pluginList);
     
-    XmlElement* ptr = pluginList.createXml();
-    String serialized = ptr->createDocument("");
-    delete ptr;
+    // JUCE 8 fix: createXml() now returns std::unique_ptr<XmlElement>
+    auto xmlPtr = pluginList.createXml();
+    String serialized = xmlPtr->toString();
+    // No need to delete - unique_ptr handles cleanup automatically
     
     return serialized.toStdString();
 }
@@ -71,10 +72,12 @@ bool RenderEngine::loadPlugin (const std::string& path, int index)
         delete plugin;
     }
 
-    plugin = pluginFormatManager.createPluginInstance (*pluginDescriptions[index],
-                                                       sampleRate,
-                                                       bufferSize,
-                                                       errorMessage);
+    // JUCE 8 fix: createPluginInstance() now returns std::unique_ptr<AudioPluginInstance>
+    auto pluginPtr = pluginFormatManager.createPluginInstance (*pluginDescriptions[index],
+                                                               sampleRate,
+                                                               bufferSize,
+                                                               errorMessage);
+    plugin = pluginPtr.release(); // Transfer ownership to raw pointer
     if (plugin != nullptr)
     {
         // Success so set up plugin, then set up features and get all available

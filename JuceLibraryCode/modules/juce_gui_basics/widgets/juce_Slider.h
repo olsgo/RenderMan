@@ -1,31 +1,86 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
 
 namespace juce
 {
+
+/** A class for receiving callbacks from a Slider or WebSliderRelay.
+
+    To be told when a slider's value changes, you can register a Slider::Listener
+    object using Slider::addListener().
+
+    @see Slider::addListener, Slider::removeListener, WebSliderRelay::addListener,
+         WebSliderRelay::removeListener
+
+     @tags{GUI}
+*/
+template <typename Emitter>
+class JUCE_API  SliderListener
+{
+public:
+    //==============================================================================
+    /** Destructor. */
+    virtual ~SliderListener() = default;
+
+    //==============================================================================
+    /** Called when the slider's value is changed.
+
+        This may be caused by dragging it, or by typing in its text entry box,
+        or by a call to Slider::setValue().
+
+        You can find out the new value using Slider::getValue().
+
+        @see Slider::valueChanged
+    */
+    virtual void sliderValueChanged (Emitter*) = 0;
+
+    //==============================================================================
+    /** Called when the slider is about to be dragged.
+
+        This is called when a drag begins, then it's followed by multiple calls
+        to sliderValueChanged(), and then sliderDragEnded() is called after the
+        user lets go.
+
+        @see sliderDragEnded, Slider::startedDragging
+    */
+    virtual void sliderDragStarted (Emitter*) {}
+
+    /** Called after a drag operation has finished.
+        @see sliderDragStarted, Slider::stoppedDragging
+    */
+    virtual void sliderDragEnded (Emitter*) {}
+};
 
 //==============================================================================
 /**
@@ -47,6 +102,8 @@ namespace juce
     the value changes.
 
     @see Slider::Listener
+
+    @tags{GUI}
 */
 class JUCE_API  Slider  : public Component,
                           public SettableTooltipClient
@@ -62,7 +119,7 @@ public:
         LinearHorizontal,               /**< A traditional horizontal slider. */
         LinearVertical,                 /**< A traditional vertical slider. */
         LinearBar,                      /**< A horizontal bar slider with the text label drawn on top of it. */
-        LinearBarVertical,
+        LinearBarVertical,              /**< A vertical bar slider with the text label drawn on top of it. */
         Rotary,                         /**< A rotary control that you move by dragging the mouse in a circular motion, like a knob.
                                              @see setRotaryParameters */
         RotaryHorizontalDrag,           /**< A rotary control that you move by dragging the mouse left-to-right.
@@ -81,7 +138,7 @@ public:
         ThreeValueHorizontal,           /**< A horizontal slider that has three thumbs instead of one, so it can show a minimum and maximum
                                              value, with the current value being somewhere between them.
                                              @see setMinValue, setMaxValue */
-        ThreeValueVertical,             /**< A vertical slider that has three thumbs instead of one, so it can show a minimum and maximum
+        ThreeValueVertical              /**< A vertical slider that has three thumbs instead of one, so it can show a minimum and maximum
                                              value, with the current value being somewhere between them.
                                              @see setMinValue, setMaxValue */
     };
@@ -105,7 +162,7 @@ public:
     {
         notDragging,            /**< Dragging is not active.  */
         absoluteDrag,           /**< The dragging corresponds directly to the value that is displayed.  */
-        velocityDrag            /**< The dragging value change is relative to the velocity of the mouse mouvement.  */
+        velocityDrag            /**< The dragging value change is relative to the velocity of the mouse movement.  */
     };
 
     //==============================================================================
@@ -123,7 +180,7 @@ public:
     Slider (SliderStyle style, TextEntryBoxPosition textBoxPosition);
 
     /** Destructor. */
-    ~Slider();
+    ~Slider() override;
 
     //==============================================================================
     /** Changes the type of slider interface being used.
@@ -139,6 +196,7 @@ public:
     SliderStyle getSliderStyle() const noexcept;
 
     //==============================================================================
+    /** Structure defining rotary parameters for a slider */
     struct RotaryParameters
     {
         /** The angle (in radians, clockwise from the top) at which
@@ -211,11 +269,14 @@ public:
                                 the threshold is reached
         @param userCanPressKeyToSwapMode    if true, then the user can hold down the ctrl or command
                                 key to toggle velocity-sensitive mode
+        @param modifiersToSwapModes  this is a set of modifier flags which will be tested when determining
+                                whether to enable/disable velocity-sensitive mode
     */
     void setVelocityModeParameters (double sensitivity = 1.0,
                                     int threshold = 1,
                                     double offset = 0.0,
-                                    bool userCanPressKeyToSwapMode = true);
+                                    bool userCanPressKeyToSwapMode = true,
+                                    ModifierKeys::Flags modifiersToSwapModes = ModifierKeys::ctrlAltCommandModifiers);
 
     /** Returns the velocity sensitivity setting.
         @see setVelocityModeParameters
@@ -377,7 +438,8 @@ public:
                                 nearest interval if one has been set
         @param notification     can be one of the NotificationType values, to request
                                 a synchronous or asynchronous call to the valueChanged() method
-                                of any Slider::Listeners that are registered.
+                                of any Slider::Listeners that are registered. A notification will
+                                only be sent if the Slider's value has changed.
     */
     void setValue (double newValue, NotificationType notification = sendNotificationAsync);
 
@@ -411,6 +473,15 @@ public:
                             is not zero, the value will always be (newMinimum + (newInterval * an integer)).
     */
     void setRange (Range<double> newRange, double newInterval);
+
+    /** Sets a NormalisableRange to use for the Slider values.
+
+        @param newNormalisableRange     the NormalisableRange to use
+    */
+    void setNormalisableRange (NormalisableRange<double> newNormalisableRange);
+
+    /** Returns the slider's normalisable range. */
+    NormalisableRange<double> getNormalisableRange() const noexcept;
 
     /** Returns the slider's range. */
     Range<double> getRange() const noexcept;
@@ -460,7 +531,8 @@ public:
                                 interval if one has been set.
         @param notification     can be one of the NotificationType values, to request
                                 a synchronous or asynchronous call to the valueChanged() method
-                                of any Slider::Listeners that are registered.
+                                of any Slider::Listeners that are registered. A notification will
+                                only be sent if this value has changed.
         @param allowNudgingOfOtherValues  if false, this value will be restricted to being below the
                                         max value (in a two-value slider) or the mid value (in a three-value
                                         slider). If true, then if this value goes beyond those values,
@@ -500,7 +572,8 @@ public:
                                 interval if one has been set.
         @param notification     can be one of the NotificationType values, to request
                                 a synchronous or asynchronous call to the valueChanged() method
-                                of any Slider::Listeners that are registered.
+                                of any Slider::Listeners that are registered. A notification will
+                                only be sent if this value has changed.
         @param allowNudgingOfOtherValues  if false, this value will be restricted to being above the
                                         min value (in a two-value slider) or the mid value (in a three-value
                                         slider). If true, then if this value goes beyond those values,
@@ -523,55 +596,15 @@ public:
                                 nearest interval if one has been set.
         @param notification     can be one of the NotificationType values, to request
                                 a synchronous or asynchronous call to the valueChanged() method
-                                of any Slider::Listeners that are registered.
+                                of any Slider::Listeners that are registered. A notification will
+                                only be sent if one or more of the values has changed.
         @see setMaxValue, setMinValue, setValue
     */
     void setMinAndMaxValues (double newMinValue, double newMaxValue,
                              NotificationType notification = sendNotificationAsync);
 
     //==============================================================================
-    /** A class for receiving callbacks from a Slider.
-
-        To be told when a slider's value changes, you can register a Slider::Listener
-        object using Slider::addListener().
-
-        @see Slider::addListener, Slider::removeListener
-    */
-    class JUCE_API  Listener
-    {
-    public:
-        //==============================================================================
-        /** Destructor. */
-        virtual ~Listener() {}
-
-        //==============================================================================
-        /** Called when the slider's value is changed.
-
-            This may be caused by dragging it, or by typing in its text entry box,
-            or by a call to Slider::setValue().
-
-            You can find out the new value using Slider::getValue().
-
-            @see Slider::valueChanged
-        */
-        virtual void sliderValueChanged (Slider* slider) = 0;
-
-        //==============================================================================
-        /** Called when the slider is about to be dragged.
-
-            This is called when a drag begins, then it's followed by multiple calls
-            to sliderValueChanged(), and then sliderDragEnded() is called after the
-            user lets go.
-
-            @see sliderDragEnded, Slider::startedDragging
-        */
-        virtual void sliderDragStarted (Slider*) {}
-
-        /** Called after a drag operation has finished.
-            @see sliderDragStarted, Slider::stoppedDragging
-        */
-        virtual void sliderDragEnded (Slider*) {}
-    };
+    using Listener = SliderListener<Slider>;
 
     /** Adds a listener to be called when this slider's value changes. */
     void addListener (Listener* listener);
@@ -580,16 +613,35 @@ public:
     void removeListener (Listener* listener);
 
     //==============================================================================
-    /** This lets you choose whether double-clicking moves the slider to a given position.
+    /** You can assign a lambda to this callback object to have it called when the slider value is changed. */
+    std::function<void()> onValueChange;
 
-        By default this is turned off, but it's handy if you want a double-click to act
-        as a quick way of resetting a slider. Just pass in the value you want it to
-        go to when double-clicked.
+    /** You can assign a lambda to this callback object to have it called when the slider's drag begins. */
+    std::function<void()> onDragStart;
+
+    /** You can assign a lambda to this callback object to have it called when the slider's drag ends. */
+    std::function<void()> onDragEnd;
+
+    /** You can assign a lambda that will be used to convert textual values to the slider's normalised position. */
+    std::function<double (const String&)> valueFromTextFunction;
+
+    /** You can assign a lambda that will be used to convert the slider's normalised position to a textual value. */
+    std::function<String (double)> textFromValueFunction;
+
+    //==============================================================================
+    /** This lets you choose whether double-clicking or single-clicking with a specified
+        key modifier moves the slider to a given position.
+
+        By default this is turned off, but it's handy if you want either of these actions
+        to act as a quick way of resetting a slider. Just pass in the value you want it to
+        go to when double-clicked. By default the key modifier is the alt key but you can
+        pass in another key modifier, or none to disable this behaviour.
 
         @see getDoubleClickReturnValue
     */
     void setDoubleClickReturnValue (bool shouldDoubleClickBeEnabled,
-                                    double valueToSetOnDoubleClick);
+                                    double valueToSetOnDoubleClick,
+                                    ModifierKeys singleClickModifiers = ModifierKeys::altModifier);
 
     /** Returns the values last set by setDoubleClickReturnValue() method.
         @see setDoubleClickReturnValue
@@ -667,6 +719,9 @@ public:
     */
     void setScrollWheelEnabled (bool enabled);
 
+    /** Returns true if the scroll wheel can move the slider. */
+    bool isScrollWheelEnabled() const noexcept;
+
     /** Returns a number to indicate which thumb is currently being dragged by the mouse.
 
         This will return 0 for the main thumb, 1 for the minimum-value thumb, 2 for
@@ -729,8 +784,17 @@ public:
         slider's value.
         It calculates the fewest decimal places needed to represent numbers with
         the slider's interval setting.
+
+        @see setNumDecimalPlacesToDisplay
     */
     int getNumDecimalPlacesToDisplay() const noexcept;
+
+    /** Modifies the best number of decimal places to use when displaying this
+        slider's value.
+
+        @see getNumDecimalPlacesToDisplay
+    */
+    void setNumDecimalPlacesToDisplay (int decimalPlacesToDisplay);
 
     //==============================================================================
     /** Allows a user-defined mapping of distance along the slider to its value.
@@ -802,6 +866,10 @@ public:
     bool isRotary() const noexcept;
     /** True if the slider is in a linear bar mode. */
     bool isBar() const noexcept;
+    /** True if the slider has two thumbs. */
+    bool isTwoValue() const noexcept;
+    /** True if the slider has three thumbs. */
+    bool isThreeValue() const noexcept;
 
     //==============================================================================
     /** A set of colour IDs to use to change the colour of various aspects of the slider.
@@ -837,12 +905,33 @@ public:
     };
 
     //==============================================================================
+    /** An RAII class for sending slider listener drag messages.
+
+        This is useful if you are programmatically updating the slider's value and want
+        to imitate a mouse event, for example in a custom AccessibilityHandler.
+
+        @see Slider::Listener
+    */
+    class JUCE_API  ScopedDragNotification
+    {
+    public:
+        explicit ScopedDragNotification (Slider&);
+        ~ScopedDragNotification();
+
+    private:
+        Slider& sliderBeingDragged;
+
+        JUCE_DECLARE_NON_MOVEABLE (ScopedDragNotification)
+        JUCE_DECLARE_NON_COPYABLE (ScopedDragNotification)
+    };
+
+    //==============================================================================
     /** This abstract base class is implemented by LookAndFeel classes to provide
         slider drawing functionality.
     */
     struct JUCE_API  LookAndFeelMethods
     {
-        virtual ~LookAndFeelMethods() {}
+        virtual ~LookAndFeelMethods() = default;
 
         //==============================================================================
         virtual void drawLinearSlider (Graphics&,
@@ -850,7 +939,7 @@ public:
                                        float sliderPos,
                                        float minSliderPos,
                                        float maxSliderPos,
-                                       const Slider::SliderStyle,
+                                       Slider::SliderStyle,
                                        Slider&) = 0;
 
         virtual void drawLinearSliderBackground (Graphics&,
@@ -858,15 +947,20 @@ public:
                                                  float sliderPos,
                                                  float minSliderPos,
                                                  float maxSliderPos,
-                                                 const Slider::SliderStyle style,
+                                                 Slider::SliderStyle,
                                                  Slider&) = 0;
+
+        virtual void drawLinearSliderOutline (Graphics&,
+                                              int x, int y, int width, int height,
+                                              Slider::SliderStyle,
+                                              Slider&) = 0;
 
         virtual void drawLinearSliderThumb (Graphics&,
                                             int x, int y, int width, int height,
                                             float sliderPos,
                                             float minSliderPos,
                                             float maxSliderPos,
-                                            const Slider::SliderStyle,
+                                            Slider::SliderStyle,
                                             Slider&) = 0;
 
         virtual int getSliderThumbRadius (Slider&) = 0;
@@ -887,14 +981,6 @@ public:
         virtual int getSliderPopupPlacement (Slider&) = 0;
 
         virtual SliderLayout getSliderLayout (Slider&) = 0;
-
-       #if JUCE_CATCH_DEPRECATED_CODE_MISUSE
-        // These methods' parameters have changed: see the new method signatures.
-        virtual void createSliderButton (bool) {}
-        virtual void getSliderEffect() {}
-        virtual void getSliderPopupFont() {}
-        virtual void getSliderPopupPlacement() {}
-       #endif
     };
 
     //==============================================================================
@@ -928,35 +1014,35 @@ public:
     void mouseExit (const MouseEvent&) override;
     /** @internal */
     void mouseEnter (const MouseEvent&) override;
+    /** @internal */
+    bool keyPressed (const KeyPress&) override;
+    /** @internal */
+    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override;
+
+    //==============================================================================
+   #ifndef DOXYGEN
+    // These methods' bool parameters have changed: see the new method signature.
+    [[deprecated]] void setValue (double, bool);
+    [[deprecated]] void setValue (double, bool, bool);
+    [[deprecated]] void setMinValue (double, bool, bool, bool);
+    [[deprecated]] void setMinValue (double, bool, bool);
+    [[deprecated]] void setMinValue (double, bool);
+    [[deprecated]] void setMaxValue (double, bool, bool, bool);
+    [[deprecated]] void setMaxValue (double, bool, bool);
+    [[deprecated]] void setMaxValue (double, bool);
+    [[deprecated]] void setMinAndMaxValues (double, double, bool, bool);
+    [[deprecated]] void setMinAndMaxValues (double, double, bool);
+   #endif
 
 private:
     //==============================================================================
     JUCE_PUBLIC_IN_DLL_BUILD (class Pimpl)
-    friend class Pimpl;
-    friend struct ContainerDeletePolicy<Pimpl>;
-    ScopedPointer<Pimpl> pimpl;
+    std::unique_ptr<Pimpl> pimpl;
 
     void init (SliderStyle, TextEntryBoxPosition);
-
-   #if JUCE_CATCH_DEPRECATED_CODE_MISUSE
-    // These methods' bool parameters have changed: see the new method signature.
-    JUCE_DEPRECATED (void setValue (double, bool));
-    JUCE_DEPRECATED (void setValue (double, bool, bool));
-    JUCE_DEPRECATED (void setMinValue (double, bool, bool, bool));
-    JUCE_DEPRECATED (void setMinValue (double, bool, bool));
-    JUCE_DEPRECATED (void setMinValue (double, bool));
-    JUCE_DEPRECATED (void setMaxValue (double, bool, bool, bool));
-    JUCE_DEPRECATED (void setMaxValue (double, bool, bool));
-    JUCE_DEPRECATED (void setMaxValue (double, bool));
-    JUCE_DEPRECATED (void setMinAndMaxValues (double, double, bool, bool));
-    JUCE_DEPRECATED (void setMinAndMaxValues (double, double, bool));
-    virtual void snapValue (double, bool) {}
-   #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Slider)
 };
 
-/** This typedef is just for compatibility with old code - newer code should use the Slider::Listener class directly. */
-typedef Slider::Listener SliderListener;
 
 } // namespace juce

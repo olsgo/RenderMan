@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -30,6 +38,24 @@ namespace juce
 class OpenGLFrameBuffer::Pimpl
 {
 public:
+    /*  Stores the currently-bound texture on construction, and re-binds it on destruction. */
+    struct ScopedTextureBinding
+    {
+        ScopedTextureBinding()
+        {
+            glGetIntegerv (GL_TEXTURE_BINDING_2D, &prev);
+            JUCE_CHECK_OPENGL_ERROR
+        }
+
+        ~ScopedTextureBinding()
+        {
+            glBindTexture (GL_TEXTURE_2D, (GLuint) prev);
+            JUCE_CHECK_OPENGL_ERROR
+        }
+
+        GLint prev{};
+    };
+
     Pimpl (OpenGLContext& c, const int w, const int h,
            const bool wantsDepthBuffer, const bool wantsStencilBuffer)
         : context (c), width (w), height (h),
@@ -40,7 +66,7 @@ public:
         // context. You'll need to create this object in one of the OpenGLContext's callbacks.
         jassert (OpenGLHelpers::isContextActive());
 
-       #if JUCE_WINDOWS || JUCE_LINUX
+       #if JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
         if (context.extensions.glGenFramebuffers == nullptr)
             return;
        #endif
@@ -48,18 +74,22 @@ public:
         context.extensions.glGenFramebuffers (1, &frameBufferID);
         bind();
 
-        glGenTextures (1, &textureID);
-        glBindTexture (GL_TEXTURE_2D, textureID);
-        JUCE_CHECK_OPENGL_ERROR
+        {
+            const ScopedTextureBinding scopedTextureBinding;
 
-        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        JUCE_CHECK_OPENGL_ERROR
+            glGenTextures (1, &textureID);
+            glBindTexture (GL_TEXTURE_2D, textureID);
+            JUCE_CHECK_OPENGL_ERROR
 
-        glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-        JUCE_CHECK_OPENGL_ERROR
+            glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            JUCE_CHECK_OPENGL_ERROR
+
+            glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+            JUCE_CHECK_OPENGL_ERROR
+        }
 
         context.extensions.glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureID, 0);
 
@@ -70,11 +100,11 @@ public:
             jassert (context.extensions.glIsRenderbuffer (depthOrStencilBuffer));
 
             context.extensions.glRenderbufferStorage (GL_RENDERBUFFER,
-                                      (wantsDepthBuffer && wantsStencilBuffer) ? GL_DEPTH24_STENCIL8
+                                      (wantsDepthBuffer && wantsStencilBuffer) ? (GLenum) GL_DEPTH24_STENCIL8
                                                                               #if JUCE_OPENGL_ES
-                                                                               : GL_DEPTH_COMPONENT16,
+                                                                               : (GLenum) GL_DEPTH_COMPONENT16,
                                                                               #else
-                                                                               : GL_DEPTH_COMPONENT,
+                                                                               : (GLenum) GL_DEPTH_COMPONENT,
                                                                               #endif
                                       width, height);
 
@@ -116,13 +146,14 @@ public:
 
     void bind()
     {
+        glGetIntegerv (GL_FRAMEBUFFER_BINDING, &prevFramebuffer);
         context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, frameBufferID);
         JUCE_CHECK_OPENGL_ERROR
     }
 
     void unbind()
     {
-        context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, context.getFrameBufferID());
+        context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, (GLuint) prevFramebuffer);
         JUCE_CHECK_OPENGL_ERROR
     }
 
@@ -132,6 +163,8 @@ public:
     bool hasDepthBuffer, hasStencilBuffer;
 
 private:
+    GLint prevFramebuffer{};
+
     bool checkStatus() noexcept
     {
         const GLenum status = context.extensions.glCheckFramebufferStatus (GL_FRAMEBUFFER);
@@ -180,11 +213,11 @@ bool OpenGLFrameBuffer::initialise (OpenGLContext& context, int width, int heigh
 {
     jassert (context.isActive()); // The context must be active when creating a framebuffer!
 
-    pimpl = nullptr;
-    pimpl = new Pimpl (context, width, height, false, false);
+    pimpl.reset();
+    pimpl.reset (new Pimpl (context, width, height, false, false));
 
     if (! pimpl->createdOk())
-        pimpl = nullptr;
+        pimpl.reset();
 
     return pimpl != nullptr;
 }
@@ -202,11 +235,11 @@ bool OpenGLFrameBuffer::initialise (OpenGLContext& context, const Image& image)
 
 bool OpenGLFrameBuffer::initialise (OpenGLFrameBuffer& other)
 {
-    const Pimpl* const p = other.pimpl;
+    auto* p = other.pimpl.get();
 
     if (p == nullptr)
     {
-        pimpl = nullptr;
+        pimpl.reset();
         return true;
     }
 
@@ -217,13 +250,16 @@ bool OpenGLFrameBuffer::initialise (OpenGLFrameBuffer& other)
         pimpl->bind();
 
        #if ! JUCE_ANDROID
-        glEnable (GL_TEXTURE_2D);
+        if (! pimpl->context.isCoreProfile())
+            glEnable (GL_TEXTURE_2D);
+
         clearGLError();
        #endif
-        glBindTexture (GL_TEXTURE_2D, p->textureID);
-        pimpl->context.copyTexture (area, area, area.getWidth(), area.getHeight(), false);
-        glBindTexture (GL_TEXTURE_2D, 0);
-        JUCE_CHECK_OPENGL_ERROR
+        {
+            const Pimpl::ScopedTextureBinding scopedTextureBinding;
+            glBindTexture (GL_TEXTURE_2D, p->textureID);
+            pimpl->context.copyTexture (area, area, area.getWidth(), area.getHeight(), false);
+        }
 
         pimpl->unbind();
         return true;
@@ -234,16 +270,16 @@ bool OpenGLFrameBuffer::initialise (OpenGLFrameBuffer& other)
 
 void OpenGLFrameBuffer::release()
 {
-    pimpl = nullptr;
-    savedState = nullptr;
+    pimpl.reset();
+    savedState.reset();
 }
 
 void OpenGLFrameBuffer::saveAndRelease()
 {
     if (pimpl != nullptr)
     {
-        savedState = new SavedState (*this, pimpl->width, pimpl->height);
-        pimpl = nullptr;
+        savedState.reset (new SavedState (*this, pimpl->width, pimpl->height));
+        pimpl.reset();
     }
 }
 
@@ -251,12 +287,13 @@ bool OpenGLFrameBuffer::reloadSavedCopy (OpenGLContext& context)
 {
     if (savedState != nullptr)
     {
-        ScopedPointer<SavedState> state (savedState);
+        std::unique_ptr<SavedState> state;
+        std::swap (state, savedState);
 
         if (state->restore (context, *this))
             return true;
 
-        savedState = state;
+        std::swap (state, savedState);
     }
 
     return false;
@@ -286,7 +323,7 @@ GLuint OpenGLFrameBuffer::getFrameBufferID() const noexcept
 
 GLuint OpenGLFrameBuffer::getCurrentFrameBufferTarget() noexcept
 {
-    GLint fb;
+    GLint fb = {};
     glGetIntegerv (GL_FRAMEBUFFER_BINDING, &fb);
     return (GLuint) fb;
 }
@@ -345,7 +382,7 @@ bool OpenGLFrameBuffer::writePixels (const PixelARGB* data, const Rectangle<int>
     glViewport (0, 0, pimpl->width, pimpl->height);
     pimpl->context.copyTexture (area, Rectangle<int> (area.getX(), area.getY(),
                                                       tex.getWidth(), tex.getHeight()),
-                                pimpl->width, pimpl->height, true);
+                                pimpl->width, pimpl->height, true, false);
 
     JUCE_CHECK_OPENGL_ERROR
     return true;

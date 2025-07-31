@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -33,6 +41,8 @@ namespace juce
 
     @see MouseListener, Component::mouseMove, Component::mouseEnter, Component::mouseExit,
          Component::mouseDown, Component::mouseUp, Component::mouseDrag
+
+    @tags{GUI}
 */
 class JUCE_API  MouseEvent  final
 {
@@ -78,8 +88,11 @@ public:
                 int numberOfClicks,
                 bool mouseWasDragged) noexcept;
 
-    /** Destructor. */
-    ~MouseEvent() noexcept;
+    MouseEvent (const MouseEvent&) = default;
+    MouseEvent& operator= (const MouseEvent&) = delete;
+
+    MouseEvent (MouseEvent&&) = default;
+    MouseEvent& operator= (MouseEvent&&) = delete;
 
     //==============================================================================
     /** The position of the mouse when the event occurred.
@@ -147,6 +160,12 @@ public:
     */
     const float tiltY;
 
+    /** The coordinates of the last place that a mouse button was pressed.
+        The coordinates are relative to the component specified in MouseEvent::component.
+        @see getDistanceFromDragStart, getDistanceFromDragStartX, mouseWasDraggedSinceMouseDown
+    */
+    const Point<float> mouseDownPosition;
+
     /** The component that this event applies to.
 
         This is usually the component that the mouse was over at the time, but for mouse-drag
@@ -195,7 +214,8 @@ public:
 
     /** Returns the coordinates of the last place that a mouse was pressed.
         The coordinates are relative to the component specified in MouseEvent::component.
-        @see getDistanceFromDragStart, getDistanceFromDragStartX, mouseWasDraggedSinceMouseDown
+        For a floating point version of this value, see mouseDownPosition.
+        @see mouseDownPosition, getDistanceFromDragStart, getDistanceFromDragStartX, mouseWasDraggedSinceMouseDown
     */
     Point<int> getMouseDownPosition() const noexcept;
 
@@ -234,8 +254,8 @@ public:
 
         This is only meaningful if called in either a mouseUp() or mouseDrag() method.
 
-        It will return true if the user has dragged the mouse more than a few pixels
-        from the place where the mouse-down occurred.
+        It will return true if the user has dragged the mouse more than a few pixels from the place
+        where the mouse-down occurred or the mouse has been held down for a significant amount of time.
 
         Once they have dragged it far enough for this method to return true, it will continue
         to return true until the mouse-up, even if they move the mouse back to the same
@@ -365,10 +385,7 @@ public:
 
 private:
     //==============================================================================
-    const Point<float> mouseDownPos;
     const uint8 numberOfClicks, wasMovedSinceMouseDown;
-
-    MouseEvent& operator= (const MouseEvent&);
 };
 
 
@@ -377,6 +394,8 @@ private:
     Contains status information about a mouse wheel event.
 
     @see MouseListener, MouseEvent
+
+    @tags{GUI}
 */
 struct MouseWheelDetails  final
 {
@@ -407,7 +426,7 @@ struct MouseWheelDetails  final
     /** If true, then the wheel has continuous, un-stepped motion. */
     bool isSmooth;
 
-    /** If true, then this event is part of the intertial momentum phase that follows
+    /** If true, then this event is part of the inertial momentum phase that follows
         the wheel being released. */
     bool isInertial;
 };
@@ -417,6 +436,8 @@ struct MouseWheelDetails  final
     Contains status information about a pen event.
 
     @see MouseListener, MouseEvent
+
+    @tags{GUI}
 */
 struct PenDetails  final
 {

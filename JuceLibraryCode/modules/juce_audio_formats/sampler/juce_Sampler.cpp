@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -44,12 +52,12 @@ SamplerSound::SamplerSound (const String& soundName,
         length = jmin ((int) source.lengthInSamples,
                        (int) (maxSampleLengthSeconds * sourceSampleRate));
 
-        data = new AudioSampleBuffer (jmin (2, (int) source.numChannels), length + 4);
+        data.reset (new AudioBuffer<float> (jmin (2, (int) source.numChannels), length + 4));
 
-        source.read (data, 0, length + 4, 0, true, true);
+        source.read (data.get(), 0, length + 4, 0, true, true);
 
-        attackSamples  = roundToInt (attackTimeSecs  * sourceSampleRate);
-        releaseSamples = roundToInt (releaseTimeSecs * sourceSampleRate);
+        params.attack  = static_cast<float> (attackTimeSecs);
+        params.release = static_cast<float> (releaseTimeSecs);
     }
 }
 
@@ -87,24 +95,10 @@ void SamplerVoice::startNote (int midiNoteNumber, float velocity, SynthesiserSou
         lgain = velocity;
         rgain = velocity;
 
-        isInAttack = (sound->attackSamples > 0);
-        isInRelease = false;
+        adsr.setSampleRate (sound->sourceSampleRate);
+        adsr.setParameters (sound->params);
 
-        if (isInAttack)
-        {
-            attackReleaseLevel = 0.0f;
-            attackDelta = (float) (pitchRatio / sound->attackSamples);
-        }
-        else
-        {
-            attackReleaseLevel = 1.0f;
-            attackDelta = 0.0f;
-        }
-
-        if (sound->releaseSamples > 0)
-            releaseDelta = (float) (-pitchRatio / sound->releaseSamples);
-        else
-            releaseDelta = -1.0f;
+        adsr.noteOn();
     }
     else
     {
@@ -116,12 +110,12 @@ void SamplerVoice::stopNote (float /*velocity*/, bool allowTailOff)
 {
     if (allowTailOff)
     {
-        isInAttack = false;
-        isInRelease = true;
+        adsr.noteOff();
     }
     else
     {
         clearCurrentNote();
+        adsr.reset();
     }
 }
 
@@ -129,7 +123,7 @@ void SamplerVoice::pitchWheelMoved (int /*newValue*/) {}
 void SamplerVoice::controllerMoved (int /*controllerNumber*/, int /*newValue*/) {}
 
 //==============================================================================
-void SamplerVoice::renderNextBlock (AudioSampleBuffer& outputBuffer, int startSample, int numSamples)
+void SamplerVoice::renderNextBlock (AudioBuffer<float>& outputBuffer, int startSample, int numSamples)
 {
     if (auto* playingSound = static_cast<SamplerSound*> (getCurrentlyPlayingSound().get()))
     {
@@ -151,35 +145,10 @@ void SamplerVoice::renderNextBlock (AudioSampleBuffer& outputBuffer, int startSa
             float r = (inR != nullptr) ? (inR[pos] * invAlpha + inR[pos + 1] * alpha)
                                        : l;
 
-            l *= lgain;
-            r *= rgain;
+            auto envelopeValue = adsr.getNextSample();
 
-            if (isInAttack)
-            {
-                l *= attackReleaseLevel;
-                r *= attackReleaseLevel;
-
-                attackReleaseLevel += attackDelta;
-
-                if (attackReleaseLevel >= 1.0f)
-                {
-                    attackReleaseLevel = 1.0f;
-                    isInAttack = false;
-                }
-            }
-            else if (isInRelease)
-            {
-                l *= attackReleaseLevel;
-                r *= attackReleaseLevel;
-
-                attackReleaseLevel += releaseDelta;
-
-                if (attackReleaseLevel <= 0.0f)
-                {
-                    stopNote (0.0f, false);
-                    break;
-                }
-            }
+            l *= lgain * envelopeValue;
+            r *= rgain * envelopeValue;
 
             if (outR != nullptr)
             {

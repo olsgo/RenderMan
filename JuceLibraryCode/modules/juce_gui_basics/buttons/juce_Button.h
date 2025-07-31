@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -36,6 +44,8 @@ namespace juce
     and radio groups, etc.
 
     @see TextButton, DrawableButton, ToggleButton
+
+    @tags{GUI}
 */
 class JUCE_API  Button  : public Component,
                           public SettableTooltipClient
@@ -52,7 +62,7 @@ protected:
 
 public:
     /** Destructor. */
-    virtual ~Button();
+    ~Button() override;
 
     //==============================================================================
     /** Changes the button's text.
@@ -78,6 +88,26 @@ public:
     bool isOver() const noexcept;
 
     //==============================================================================
+    /** Indicates that the button's on/off state is toggleable.
+
+        By default this is false, and will only be true for ToggleButtons, buttons that
+        are a part of a radio button group, and buttons for which
+        getClickingTogglesState() == true, however you can use this method to manually
+        indicate that a button is toggleable.
+
+        This will present the button as toggleable to accessibility clients and add an
+        accessible "toggle" action for the button that invokes setToggleState().
+
+        @see ToggleButton, isToggleable, setToggleState, setClickingTogglesState, setRadioGroupId
+    */
+    void setToggleable (bool shouldBeToggleable);
+
+    /** Returns true if the button's on/off state is toggleable.
+
+        @see setToggleable, setClickingTogglesState
+    */
+    bool isToggleable() const noexcept                          { return canBeToggled || clickTogglesState; }
+
     /** A button has an on/off state associated with it, and this changes that.
 
         By default buttons are 'off' and for simple buttons that you click to perform
@@ -105,10 +135,12 @@ public:
     */
     bool getToggleState() const noexcept                        { return isOn.getValue(); }
 
-    /** Returns the Value object that represents the botton's toggle state.
+    /** Returns the Value object that represents the button's toggle state.
+
         You can use this Value object to connect the button's state to external values or setters,
         either by taking a copy of the Value, or by using Value::referTo() to make it point to
         your own Value object.
+
         @see getToggleState, Value
     */
     Value& getToggleStateValue() noexcept                       { return isOn; }
@@ -117,14 +149,16 @@ public:
         the button is clicked.
 
         If set to true, then before the clicked() callback occurs, the toggle-state
-        of the button is flipped.
+        of the button is flipped. This will also cause isToggleable() to return true.
+
+        @see isToggleable
     */
     void setClickingTogglesState (bool shouldAutoToggleOnClick) noexcept;
 
     /** Returns true if this button is set to be an automatic toggle-button.
         This returns the last value that was passed to setClickingTogglesState().
     */
-    bool getClickingTogglesState() const noexcept;
+    bool getClickingTogglesState() const noexcept               { return clickTogglesState; }
 
     //==============================================================================
     /** Enables the button to act as a member of a mutually-exclusive group
@@ -164,7 +198,7 @@ public:
     {
     public:
         /** Destructor. */
-        virtual ~Listener()  {}
+        virtual ~Listener() = default;
 
         /** Called when the button is clicked. */
         virtual void buttonClicked (Button*) = 0;
@@ -183,6 +217,13 @@ public:
         @see addListener
     */
     void removeListener (Listener* listener);
+
+    //==============================================================================
+    /** You can assign a lambda to this callback object to have it called when the button is clicked. */
+    std::function<void()> onClick;
+
+    /** You can assign a lambda to this callback object to have it called when the button's state changes. */
+    std::function<void()> onStateChange;
 
     //==============================================================================
     /** Causes the button to act as if it's been clicked.
@@ -352,55 +393,52 @@ public:
     /** Returns the button's current over/down/up state. */
     ButtonState getState() const noexcept               { return buttonState; }
 
-    // This method's parameters have changed - see the new version.
-    JUCE_DEPRECATED (void setToggleState (bool, bool));
-
     //==============================================================================
     /** This abstract base class is implemented by LookAndFeel classes to provide
         button-drawing functionality.
     */
     struct JUCE_API  LookAndFeelMethods
     {
-        virtual ~LookAndFeelMethods() {}
+        virtual ~LookAndFeelMethods() = default;
 
         virtual void drawButtonBackground (Graphics&, Button&, const Colour& backgroundColour,
-                                           bool isMouseOverButton, bool isButtonDown) = 0;
+                                           bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) = 0;
 
         virtual Font getTextButtonFont (TextButton&, int buttonHeight) = 0;
         virtual int getTextButtonWidthToFitText (TextButton&, int buttonHeight) = 0;
 
         /** Draws the text for a TextButton. */
-        virtual void drawButtonText (Graphics&, TextButton&, bool isMouseOverButton, bool isButtonDown) = 0;
+        virtual void drawButtonText (Graphics&, TextButton&,
+                                     bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) = 0;
 
         /** Draws the contents of a standard ToggleButton. */
-        virtual void drawToggleButton (Graphics&, ToggleButton&, bool isMouseOverButton, bool isButtonDown) = 0;
+        virtual void drawToggleButton (Graphics&, ToggleButton&,
+                                       bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) = 0;
 
         virtual void changeToggleButtonWidthToFitText (ToggleButton&) = 0;
 
         virtual void drawTickBox (Graphics&, Component&, float x, float y, float w, float h,
-                                  bool ticked, bool isEnabled, bool isMouseOverButton, bool isButtonDown) = 0;
+                                  bool ticked, bool isEnabled,
+                                  bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) = 0;
 
-        virtual void drawDrawableButton (Graphics&, DrawableButton&, bool isMouseOverButton, bool isButtonDown) = 0;
-
-    private:
-       #if JUCE_CATCH_DEPRECATED_CODE_MISUSE
-        // These method have been deprecated: see their replacements above.
-        virtual int getTextButtonFont (TextButton&) { return 0; }
-        virtual int changeTextButtonWidthToFitText (TextButton&, int) { return 0; }
-       #endif
+        virtual void drawDrawableButton (Graphics&, DrawableButton&,
+                                         bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) = 0;
     };
+
+    //==============================================================================
+   #ifndef DOXYGEN
+    [[deprecated ("This method's parameters have changed.")]]
+    void setToggleState (bool, bool);
+   #endif
 
 protected:
     //==============================================================================
     /** This method is called when the button has been clicked.
 
-        Subclasses can override this to perform whatever they actions they need
-        to do.
-
-        Alternatively, a Button::Listener can be added to the button, and these listeners
-        will be called when the click occurs.
-
-        @see triggerClick
+        Subclasses can override this to perform whatever actions they need to do.
+        In general, you wouldn't use this method to receive clicks, but should get your callbacks
+        by attaching a std::function to the onClick callback, or adding a Button::Listener.
+        @see triggerClick, onClick
     */
     virtual void clicked();
 
@@ -418,14 +456,13 @@ protected:
         It's better to use this than the paint method, because it gives you information
         about the over/down state of the button.
 
-        @param g                    the graphics context to use
-        @param isMouseOverButton    true if the button is either in the 'over' or
-                                    'down' state
-        @param isButtonDown         true if the button should be drawn in the 'down' position
+        @param g                                the graphics context to use
+        @param shouldDrawButtonAsHighlighted    true if the button is either in the 'over' or 'down' state
+        @param shouldDrawButtonAsDown           true if the button should be drawn in the 'down' position
     */
     virtual void paintButton (Graphics& g,
-                              bool isMouseOverButton,
-                              bool isButtonDown) = 0;
+                              bool shouldDrawButtonAsHighlighted,
+                              bool shouldDrawButtonAsDown) = 0;
 
     /** Called when the button's up/down/over state changes.
 
@@ -467,6 +504,8 @@ protected:
     void focusLost (FocusChangeType) override;
     /** @internal */
     void enablementChanged() override;
+    /** @internal */
+    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override;
 
 private:
     //==============================================================================
@@ -475,25 +514,26 @@ private:
     String text;
     ListenerList<Listener> buttonListeners;
 
-    class CallbackHelper;
-    friend class CallbackHelper;
-    friend struct ContainerDeletePolicy<CallbackHelper>;
-    ScopedPointer<CallbackHelper> callbackHelper;
-    uint32 buttonPressTime, lastRepeatTime;
-    ApplicationCommandManager* commandManagerToUse;
-    int autoRepeatDelay, autoRepeatSpeed, autoRepeatMinimumDelay;
-    int radioGroupId, connectedEdgeFlags;
-    CommandID commandID;
-    ButtonState buttonState, lastStatePainted;
+    struct CallbackHelper;
+    std::unique_ptr<CallbackHelper> callbackHelper;
+    uint32 buttonPressTime = 0, lastRepeatTime = 0;
+    ApplicationCommandManager* commandManagerToUse = nullptr;
+    int autoRepeatDelay = -1, autoRepeatSpeed = 0, autoRepeatMinimumDelay = -1;
+    int radioGroupId = 0, connectedEdgeFlags = 0;
+    CommandID commandID = {};
+    ButtonState buttonState = buttonNormal, lastStatePainted = buttonNormal;
 
     Value isOn;
-    bool lastToggleState;
-    bool clickTogglesState;
-    bool needsToRelease;
-    bool needsRepainting;
-    bool isKeyDown;
-    bool triggerOnMouseDown;
-    bool generateTooltip;
+    bool canBeToggled = false;
+    bool lastToggleState = false;
+    bool clickTogglesState = false;
+    bool needsToRelease = false;
+    bool needsRepainting = false;
+    bool isKeyDown = false;
+    bool triggerOnMouseDown = false;
+    bool generateTooltip = false;
+
+    void checkToggleableState (bool wasToggleable);
 
     void repeatTimerCallback();
     bool keyStateChangedCallback();
@@ -503,20 +543,17 @@ private:
     ButtonState updateState();
     ButtonState updateState (bool isOver, bool isDown);
     bool isShortcutPressed() const;
-    void turnOffOtherButtonsInGroup (NotificationType);
+    void turnOffOtherButtonsInGroup (NotificationType click, NotificationType state);
 
     void flashButtonState();
     void sendClickMessage (const ModifierKeys&);
     void sendStateMessage();
+    void setToggleState (bool shouldBeOn, NotificationType click, NotificationType state);
 
-    bool isMouseOrTouchOver (const MouseEvent& e);
+    bool isMouseSourceOver (const MouseEvent& e);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Button)
 };
 
-#ifndef DOXYGEN
- /** This typedef is just for compatibility with old code and VC6 - newer code should use Button::Listener instead. */
- typedef Button::Listener ButtonListener;
-#endif
 
 } // namespace juce

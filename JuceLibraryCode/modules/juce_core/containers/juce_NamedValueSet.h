@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -28,69 +40,59 @@ namespace juce
 
     This can be used as a basic structure to hold a set of var object, which can
     be retrieved by using their identifier.
+
+    @tags{Core}
 */
 class JUCE_API  NamedValueSet
 {
 public:
-    /** Creates an empty set. */
-    NamedValueSet() noexcept;
-
-    /** Creates a copy of another set. */
-    NamedValueSet (const NamedValueSet&);
-
-    /** Replaces this set with a copy of another set. */
-    NamedValueSet& operator= (const NamedValueSet&);
-
-    /** Move constructor */
-    NamedValueSet (NamedValueSet&&) noexcept;
-
-    /** Move assignment operator */
-    NamedValueSet& operator= (NamedValueSet&&) noexcept;
-
-    /** Destructor. */
-    ~NamedValueSet() noexcept;
-
-    bool operator== (const NamedValueSet&) const;
-    bool operator!= (const NamedValueSet&) const;
-
     //==============================================================================
-    struct NamedValue
+    /** Structure for a named var object */
+    struct JUCE_API  NamedValue
     {
-        NamedValue() noexcept {}
-        NamedValue (const Identifier& n, const var& v)  : name (n), value (v) {}
-        NamedValue (const NamedValue& other) : name (other.name), value (other.value) {}
+        NamedValue() noexcept;
+        ~NamedValue() noexcept;
 
-        NamedValue (NamedValue&& other) noexcept
-        : name (static_cast<Identifier&&> (other.name)),
-          value (static_cast<var&&> (other.value))
-        {
-        }
+        NamedValue (const Identifier& name, const var& value);
+        NamedValue (const Identifier& name, var&& value) noexcept;
+        NamedValue (Identifier&& name, var&& value) noexcept;
 
-        NamedValue (Identifier&& n, var&& v) noexcept
-        : name (static_cast<Identifier&&> (n)),
-          value (static_cast<var&&> (v))
-        {
-        }
+        NamedValue (const NamedValue&);
+        NamedValue (NamedValue&&) noexcept;
+        NamedValue& operator= (NamedValue&&) noexcept;
 
-        NamedValue& operator= (NamedValue&& other) noexcept
-        {
-            name = static_cast<Identifier&&> (other.name);
-            value = static_cast<var&&> (other.value);
-            return *this;
-        }
-
-        bool operator== (const NamedValue& other) const noexcept   { return name == other.name && value == other.value; }
-        bool operator!= (const NamedValue& other) const noexcept   { return ! operator== (other); }
+        bool operator== (const NamedValue&) const noexcept;
+        bool operator!= (const NamedValue&) const noexcept;
 
         Identifier name;
         var value;
     };
 
-    NamedValueSet::NamedValue* begin() { return values.begin(); }
-    NamedValueSet::NamedValue* end()   { return values.end();   }
+    //==============================================================================
+    /** Creates an empty set. */
+    NamedValueSet() noexcept;
+
+    NamedValueSet (const NamedValueSet&);
+    NamedValueSet (NamedValueSet&&) noexcept;
+    NamedValueSet& operator= (const NamedValueSet&);
+    NamedValueSet& operator= (NamedValueSet&&) noexcept;
+
+    /** Creates a NamedValueSet from a list of names and properties. */
+    NamedValueSet (std::initializer_list<NamedValue>);
+
+    /** Destructor. */
+    ~NamedValueSet() noexcept;
+
+    /** Two NamedValueSets are considered equal if they contain all the same key/value
+        pairs, regardless of the order.
+    */
+    bool operator== (const NamedValueSet&) const noexcept;
+    bool operator!= (const NamedValueSet&) const noexcept;
+
+    const NamedValueSet::NamedValue* begin() const noexcept     { return values.begin(); }
+    const NamedValueSet::NamedValue* end() const noexcept       { return values.end();   }
 
     //==============================================================================
-
     /** Returns the total number of values that the set contains. */
     int size() const noexcept;
 
@@ -99,7 +101,6 @@ public:
 
     /** Returns the value of a named item.
         If the name isn't found, this will return a void variant.
-        @see getProperty
     */
     const var& operator[] (const Identifier& name) const noexcept;
 
@@ -139,8 +140,20 @@ public:
 
         Do not use this method unless you really need access to the internal var object
         for some reason - for normal reading and writing always prefer operator[]() and set().
+        Also note that the pointer returned may become invalid as soon as any subsequent
+        methods are called on the NamedValueSet.
     */
-    var* getVarPointer (const Identifier& name) const noexcept;
+    var* getVarPointer (const Identifier& name) noexcept;
+
+    /** Returns a pointer to the var that holds a named value, or null if there is
+        no value with this name.
+
+        Do not use this method unless you really need access to the internal var object
+        for some reason - for normal reading and writing always prefer operator[]() and set().
+        Also note that the pointer returned may become invalid as soon as any subsequent
+        methods are called on the NamedValueSet.
+    */
+    const var* getVarPointer (const Identifier& name) const noexcept;
 
     /** Returns the value of the item at a given index.
         The index must be between 0 and size() - 1.
@@ -149,8 +162,17 @@ public:
 
     /** Returns the value of the item at a given index.
         The index must be between 0 and size() - 1, or this will return a nullptr
+        Also note that the pointer returned may become invalid as soon as any subsequent
+        methods are called on the NamedValueSet.
     */
-    var* getVarPointerAt (int index) const noexcept;
+    var* getVarPointerAt (int index) noexcept;
+
+    /** Returns the value of the item at a given index.
+        The index must be between 0 and size() - 1, or this will return a nullptr
+        Also note that the pointer returned may become invalid as soon as any subsequent
+        methods are called on the NamedValueSet.
+    */
+    const var* getVarPointerAt (int index) const noexcept;
 
     /** Returns the index of the given name, or -1 if it's not found. */
     int indexOf (const Identifier& name) const noexcept;

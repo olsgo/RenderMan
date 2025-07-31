@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -36,6 +44,8 @@ namespace juce
     GlyphArrangement class will do what you need for text layout.
 
     @see GlyphArrangement, Font
+
+    @tags{Graphics}
 */
 class JUCE_API  PositionedGlyph  final
 {
@@ -45,15 +55,6 @@ public:
 
     PositionedGlyph (const Font& font, juce_wchar character, int glyphNumber,
                      float anchorX, float baselineY, float width, bool isWhitespace);
-
-    PositionedGlyph (const PositionedGlyph&) = default;
-    PositionedGlyph& operator= (const PositionedGlyph&) = default;
-
-    // VS2013 can't default move constructors and assignmants
-    PositionedGlyph (PositionedGlyph&&) noexcept;
-    PositionedGlyph& operator= (PositionedGlyph&&) noexcept;
-
-    ~PositionedGlyph();
 
     /** Returns the character the glyph represents. */
     juce_wchar getCharacter() const noexcept    { return character; }
@@ -99,7 +100,7 @@ public:
 private:
     //==============================================================================
     friend class GlyphArrangement;
-    Font font;
+    Font font { FontOptions{} };
     juce_wchar character;
     int glyph;
     float x, y, w;
@@ -118,23 +119,25 @@ private:
     Graphics class, but can be used directly if more control is needed.
 
     @see Font, PositionedGlyph
+
+    @tags{Graphics}
 */
 class JUCE_API  GlyphArrangement  final
 {
 public:
+    using Options = GlyphArrangementOptions;
+
     //==============================================================================
     /** Creates an empty arrangement. */
     GlyphArrangement();
 
     GlyphArrangement (const GlyphArrangement&) = default;
     GlyphArrangement& operator= (const GlyphArrangement&) = default;
-
-    // VS2013 can't default move constructors and assignmants
-    GlyphArrangement (GlyphArrangement&&);
-    GlyphArrangement& operator= (GlyphArrangement&&);
+    GlyphArrangement (GlyphArrangement&&) = default;
+    GlyphArrangement& operator= (GlyphArrangement&&) = default;
 
     /** Destructor. */
-    ~GlyphArrangement();
+    ~GlyphArrangement() = default;
 
     //==============================================================================
     /** Returns the total number of glyphs in the arrangement. */
@@ -146,7 +149,10 @@ public:
                         careful not to pass an out-of-range index here, as it
                         doesn't do any bounds-checking.
     */
-    PositionedGlyph& getGlyph (int index) const noexcept;
+    PositionedGlyph& getGlyph (int index) noexcept;
+
+    const PositionedGlyph* begin() const                        { return glyphs.begin(); }
+    const PositionedGlyph* end() const                          { return glyphs.end(); }
 
     //==============================================================================
     /** Clears all text from the arrangement and resets it. */
@@ -187,18 +193,19 @@ public:
         between x and (x + maxLineWidth).
 
         The y coordinate is the position of the baseline of the first line of text - subsequent
-        lines will be placed below it, separated by a distance of font.getHeight().
+        lines will be placed below it, separated by a distance of font.getHeight() + leading.
     */
     void addJustifiedText (const Font& font,
                            const String& text,
                            float x, float y,
                            float maxLineWidth,
-                           Justification horizontalLayout);
+                           Justification horizontalLayout,
+                           float leading = 0.0f);
 
     /** Tries to fit some text within a given space.
 
         This does its best to make the given text readable within the specified rectangle,
-        so it useful for labelling things.
+        so it's useful for labelling things.
 
         If the text is too big, it'll be squashed horizontally or broken over multiple lines
         if the maximumLinesToUse value allows this. If the text just won't fit into the space,
@@ -219,7 +226,8 @@ public:
                         float x, float y, float width, float height,
                         Justification layout,
                         int maximumLinesToUse,
-                        float minimumHorizontalScale = 0.0f);
+                        float minimumHorizontalScale = 0.0f,
+                        GlyphArrangementOptions options = {});
 
     /** Appends another glyph arrangement to this one. */
     void addGlyphArrangement (const GlyphArrangement&);
@@ -305,19 +313,42 @@ public:
                         float x, float y, float width, float height,
                         Justification justification);
 
+    /** This convenience function adds text to a GlyphArrangement using the specified font
+        and returns the bounding box of the text after shaping.
+
+        The returned bounding box is positioned with its origin at the left end of the text's
+        baseline.
+    */
+    static Rectangle<float> getStringBounds (const Font& font, StringRef text)
+    {
+        GlyphArrangement arrangement;
+        arrangement.addLineOfText (font, text, 0.0f, 0.0f);
+        return arrangement.getBoundingBox (0, arrangement.getNumGlyphs(), true);
+    }
+
+    /** This convenience function adds text to a GlyphArrangement using the specified font
+        and returns the width of the bounding box of the text after shaping.
+    */
+    static float getStringWidth (const Font& font, StringRef text)
+    {
+        return getStringBounds (font, text).getWidth();
+    }
+
+    /** This convenience function adds text to a GlyphArrangement using the specified font
+        and returns the width of the bounding box of the text after shaping, rounded up to the
+        next integer.
+    */
+    static int getStringWidthInt (const Font& font, StringRef text)
+    {
+        return (int) std::ceil (getStringWidth (font, text));
+    }
 
 private:
     //==============================================================================
     Array<PositionedGlyph> glyphs;
 
-    int insertEllipsis (const Font&, float maxXPos, int startIndex, int endIndex);
-    int fitLineIntoSpace (int start, int numGlyphs, float x, float y, float w, float h, const Font&,
-                          Justification, float minimumHorizontalScale);
     void spreadOutLine (int start, int numGlyphs, float targetWidth);
-    void splitLines (const String&, Font, int start, float x, float y, float w, float h, int maxLines,
-                     float lineWidth, Justification, float minimumHorizontalScale);
-    void addLinesWithLineBreaks (const String&, const Font&, float x, float y, float width, float height, Justification);
-    void drawGlyphUnderline (const Graphics&, const PositionedGlyph&, int, AffineTransform) const;
+    void drawGlyphUnderline (const Graphics&, int, AffineTransform) const;
 
     JUCE_LEAK_DETECTOR (GlyphArrangement)
 };

@@ -1,25 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -29,25 +37,23 @@ namespace juce
 
 FilenameComponent::FilenameComponent (const String& name,
                                       const File& currentFile,
-                                      const bool canEditFilename,
-                                      const bool isDirectory,
-                                      const bool isForSaving,
+                                      bool canEditFilename,
+                                      bool isDirectory,
+                                      bool isForSaving,
                                       const String& fileBrowserWildcard,
                                       const String& suffix,
                                       const String& textWhenNothingSelected)
     : Component (name),
-      maxRecentFiles (30),
       isDir (isDirectory),
       isSaving (isForSaving),
-      isFileDragOver (false),
       wildcard (fileBrowserWildcard),
       enforcedSuffix (suffix)
 {
     addAndMakeVisible (filenameBox);
     filenameBox.setEditableText (canEditFilename);
-    filenameBox.addListener (this);
     filenameBox.setTextWhenNothingSelected (textWhenNothingSelected);
     filenameBox.setTextWhenNoChoicesAvailable (TRANS ("(no recently selected files)"));
+    filenameBox.onChange = [this] { setCurrentFile (getCurrentFile(), true); };
 
     setBrowseButtonText ("...");
 
@@ -70,14 +76,14 @@ void FilenameComponent::paintOverChildren (Graphics& g)
 
 void FilenameComponent::resized()
 {
-    getLookAndFeel().layoutFilenameComponent (*this, &filenameBox, browseButton);
+    getLookAndFeel().layoutFilenameComponent (*this, &filenameBox, browseButton.get());
 }
 
-KeyboardFocusTraverser* FilenameComponent::createFocusTraverser()
+std::unique_ptr<ComponentTraverser> FilenameComponent::createKeyboardFocusTraverser()
 {
     // This prevents the sub-components from grabbing focus if the
     // FilenameComponent has been set to refuse focus.
-    return getWantsKeyboardFocus() ? Component::createFocusTraverser() : nullptr;
+    return getWantsKeyboardFocus() ? Component::createKeyboardFocusTraverser() : nullptr;
 }
 
 void FilenameComponent::setBrowseButtonText (const String& newBrowseButtonText)
@@ -88,13 +94,12 @@ void FilenameComponent::setBrowseButtonText (const String& newBrowseButtonText)
 
 void FilenameComponent::lookAndFeelChanged()
 {
-    browseButton = nullptr;
-
-    addAndMakeVisible (browseButton = getLookAndFeel().createFilenameComponentBrowseButton (browseButtonText));
+    browseButton.reset();
+    browseButton.reset (getLookAndFeel().createFilenameComponentBrowseButton (browseButtonText));
+    addAndMakeVisible (browseButton.get());
     browseButton->setConnectedEdges (Button::ConnectedOnLeft);
+    browseButton->onClick = [this] { showChooser(); };
     resized();
-
-    browseButton->addListener (this);
 }
 
 void FilenameComponent::setTooltip (const String& newTooltip)
@@ -110,33 +115,30 @@ void FilenameComponent::setDefaultBrowseTarget (const File& newDefaultDirectory)
 
 File FilenameComponent::getLocationToBrowse()
 {
-    return getCurrentFile() == File() ? defaultBrowseFile
-                                      : getCurrentFile();
+    if (lastFilename.isEmpty() && defaultBrowseFile != File())
+        return defaultBrowseFile;
+
+    return getCurrentFile();
 }
 
-void FilenameComponent::buttonClicked (Button*)
+void FilenameComponent::showChooser()
 {
-   #if JUCE_MODAL_LOOPS_PERMITTED
-    FileChooser fc (isDir ? TRANS ("Choose a new directory")
-                          : TRANS ("Choose a new file"),
-                    getLocationToBrowse(),
-                    wildcard);
+    chooser = std::make_unique<FileChooser> (isDir ? TRANS ("Choose a new directory")
+                                                   : TRANS ("Choose a new file"),
+                                             getLocationToBrowse(),
+                                             wildcard);
 
-    if (isDir ? fc.browseForDirectory()
-              : (isSaving ? fc.browseForFileToSave (false)
-                          : fc.browseForFileToOpen()))
+    auto chooserFlags = isDir ? FileBrowserComponent::openMode | FileBrowserComponent::canSelectDirectories
+                              : FileBrowserComponent::canSelectFiles | (isSaving ? FileBrowserComponent::saveMode
+                                                                                 : FileBrowserComponent::openMode);
+
+    chooser->launchAsync (chooserFlags, [this] (const FileChooser&)
     {
-        setCurrentFile (fc.getResult(), true);
-    }
-   #else
-    ignoreUnused (isSaving);
-    jassertfalse; // needs rewriting to deal with non-modal environments
-   #endif
-}
+        if (chooser->getResult() == File{})
+            return;
 
-void FilenameComponent::comboBoxChanged (ComboBox*)
-{
-    setCurrentFile (getCurrentFile(), true);
+        setCurrentFile (chooser->getResult(), true);
+    });
 }
 
 bool FilenameComponent::isInterestedInFileDrag (const StringArray&)
@@ -175,7 +177,7 @@ String FilenameComponent::getCurrentFileText() const
 
 File FilenameComponent::getCurrentFile() const
 {
-    File f (File::getCurrentWorkingDirectory().getChildFile (getCurrentFileText()));
+    auto f = File::getCurrentWorkingDirectory().getChildFile (getCurrentFileText());
 
     if (enforcedSuffix.isNotEmpty())
         f = f.withFileExtension (enforcedSuffix);
@@ -244,7 +246,7 @@ void FilenameComponent::setMaxNumberOfRecentFiles (const int newMaximum)
 
 void FilenameComponent::addRecentlyUsedFile (const File& file)
 {
-    StringArray files (getRecentlyUsedFilenames());
+    auto files = getRecentlyUsedFilenames();
 
     if (file.getFullPathName().isNotEmpty())
     {
@@ -269,7 +271,7 @@ void FilenameComponent::removeListener (FilenameComponentListener* const listene
 void FilenameComponent::handleAsyncUpdate()
 {
     Component::BailOutChecker checker (this);
-    listeners.callChecked (checker, &FilenameComponentListener::filenameComponentChanged, this);
+    listeners.callChecked (checker, [this] (FilenameComponentListener& l) { l.filenameComponentChanged (this); });
 }
 
 } // namespace juce
