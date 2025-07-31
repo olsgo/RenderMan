@@ -388,25 +388,22 @@
 					../../VST3_SDK,
 					../../JuceLibraryCode,
 					../../JuceLibraryCode/modules,
-					"/usr/local/include/python3.12",
-					"/opt/homebrew/include/python3.12",
+					"/usr/local/Cellar/python@3.8/3.8.5/Frameworks/Python.framework/Versions/3.8/include/python3.8",
 					/usr/local/include,
-					"/opt/homebrew/include",
 					"$(inherited)",
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"/usr/local/lib\"",
-					"/usr/local/lib/python3.12/config-3.12-darwin",
-					"/opt/homebrew/lib/python3.12/config-3.12-darwin",
+					"/usr/local/opt/python@3.8/Frameworks/Python.framework/Versions/3.8/lib/python3.8/config-3.8-darwin",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				MACOSX_DEPLOYMENT_TARGET_ppc = 10.4;
 				OTHER_CPLUSPLUSFLAGS = "-fPIC";
 				OTHER_LDFLAGS = (
 					"-shared",
-					"-lpython3.12",
-					"-lboost_python312",
+					"-lpython3.8",
+					"-lboost_python38",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.RenderMan;
 				SDKROOT_ppc = macosx10.5;
@@ -487,25 +484,22 @@
 					../../VST3_SDK,
 					../../JuceLibraryCode,
 					../../JuceLibraryCode/modules,
-					"/usr/local/include/python3.12",
-					"/opt/homebrew/include/python3.12",
+					"/usr/local/Cellar/python@3.8/3.8.5/Frameworks/Python.framework/Versions/3.8/include/python3.8",
 					/usr/local/include,
-					"/opt/homebrew/include",
 					"$(inherited)",
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"/usr/local/lib\"",
-					"/usr/local/lib/python3.12/config-3.12-darwin",
-					"/opt/homebrew/lib/python3.12/config-3.12-darwin",
+					"/usr/local/opt/python@3.8/Frameworks/Python.framework/Versions/3.8/lib/python3.8/config-3.8-darwin",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				MACOSX_DEPLOYMENT_TARGET_ppc = 10.4;
 				OTHER_CPLUSPLUSFLAGS = "-fPIC";
 				OTHER_LDFLAGS = (
 					"-shared",
-					"-lpython3.12",
-					"-lboost_python312",
+					"-lpython3.8",
+					"-lboost_python38",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.RenderMan;
 				SDKROOT_ppc = macosx10.5;

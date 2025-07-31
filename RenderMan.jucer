@@ -29,15 +29,15 @@
     <FILE id="PqgGm9" name="source.cpp" compile="1" resource="0" file="Source/source.cpp"/>
   </MAINGROUP>
   <EXPORTFORMATS>
-    <XCODE_MAC targetFolder="Builds/MacOSX" vst3Folder="VST3_SDK" extraLinkerFlags="-shared -lpython2.7 -lboost_python"
+    <XCODE_MAC targetFolder="Builds/MacOSX" vst3Folder="VST3_SDK" extraLinkerFlags="-shared -lpython3.12 -lboost_python312"
                extraCompilerFlags="-fPIC">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="librenderman.so"
-                       osxCompatibility="10.9 SDK" osxArchitecture="Native" headerPath="/usr/include/python2.7&#10;/usr/local/include&#10;"
-                       libraryPath="/usr/local/lib" enablePluginBinaryCopyStep="1"/>
+                       osxCompatibility="14.0 SDK" osxArchitecture="arm64,x86_64" headerPath="/usr/local/include/python3.12&#10;/usr/local/include&#10;/opt/homebrew/include&#10;"
+                       libraryPath="/usr/local/lib&#10;/opt/homebrew/lib&#10;" enablePluginBinaryCopyStep="1"/>
         <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="librenderman.so"
-                       osxCompatibility="10.9 SDK" osxArchitecture="Native" headerPath="/usr/include/python2.7&#10;/usr/local/include&#10;"
-                       libraryPath="/usr/local/lib" enablePluginBinaryCopyStep="1"/>
+                       osxCompatibility="14.0 SDK" osxArchitecture="arm64,x86_64" headerPath="/usr/local/include/python3.12&#10;/usr/local/include&#10;/opt/homebrew/include&#10;"
+                       libraryPath="/usr/local/lib&#10;/opt/homebrew/lib&#10;" enablePluginBinaryCopyStep="1"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_core" path="JuceLibraryCode/modules"/>
