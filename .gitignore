@@ -1,0 +1,39 @@
+# Build artifacts
+Builds/MacOSX/build/
+Builds/LinuxMakefile/build/
+Builds/VisualStudio*/Debug/
+Builds/VisualStudio*/Release/
+Builds/VisualStudio*/x64/
+
+# Compiled libraries
+*.so
+*.dylib
+*.dll
+*.pyd
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+*.xcuserstate
+*.xcuserdatad/
+
+# Temporary files
+/tmp/
+*.tmp
+*.bak
+*.backup
+
+# IDE files
+.vscode/
+.idea/
+
+# Log files
+*.log
+
+# Project user settings (keep project.pbxproj but not user-specific files)
+Builds/MacOSX/RenderMan.xcodeproj/xcuserdata/
+Builds/MacOSX/RenderMan.xcodeproj/project.xcworkspace/xcuserdata/

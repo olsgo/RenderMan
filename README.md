@@ -45,9 +45,17 @@ We can plot the output audio frames easily by using matplotlib.
 
 ### MacOS
 
+#### For M1 Max / Apple Silicon with macOS Sequoia
+
+**⚠️ For M1 Max/Apple Silicon users with macOS Sequoia, please see [BUILD_INSTRUCTIONS_M1_SEQUOIA.md](BUILD_INSTRUCTIONS_M1_SEQUOIA.md) for complete updated build instructions.**
+
+The project has been updated for full M1 Max and macOS Sequoia compatibility with Python 3.12 support.
+
+#### Standard macOS Build Instructions
+
 If you haven't already, [get brew](https://brew.sh/). The last time I checked the command to install was simply this:
 ```
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 Next, get the boost headers.
@@ -62,7 +70,7 @@ Now just open the Xcode project in the Builds directory and build it! There is a
 mv librenderman.so.dylib librenderman.so
 ```
 
-**IMPORTANT:** The project is linked with libpython3.8 and libboost_python38 and the appropriate include directories. If you have a different version of python installed, run `python3-config --includes --ldflags` to obtain the library and include paths, and update the XCode project to point to the correct locations
+**IMPORTANT:** The project is now configured for Python 3.12 and boost_python312. For M1 Macs, dependencies should be installed via Homebrew. The project includes both Intel (`/usr/local/*`) and ARM (`/opt/homebrew/*`) paths for maximum compatibility.
 
 ### Linux
 
