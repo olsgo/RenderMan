@@ -53,20 +53,36 @@ bool RenderEngine::loadPlugin (const std::string& path, int index)
     KnownPluginList pluginList;
     fillAvailablePluginsInfo(path, pluginFormatManager, pluginDescriptions, pluginList);
 
+    if (debugMode) {
+        std::cout << "RenderEngine::loadPlugin debug: Scanning path '" << path << "'" << std::endl;
+        std::cout << "RenderEngine::loadPlugin debug: Found " << pluginDescriptions.size() << " plugins" << std::endl;
+    }
+
     // If there is a problem here first check the preprocessor definitions
     // in the projucer are sensible - is it set up to scan for plugin's?
     jassert (pluginDescriptions.size() > 0);
 
     if (index >= pluginDescriptions.size()) {
         std::cout << "RenderEngine::loadPlugin error: plugin index " << index
-        << "provided, but only " << pluginDescriptions.size()
-        << "plugins detected" << std::endl;
+        << " provided, but only " << pluginDescriptions.size()
+        << " plugins detected" << std::endl;
         return false;
+    }
+    
+    if (debugMode) {
+        std::cout << "RenderEngine::loadPlugin debug: Loading plugin at index " << index << std::endl;
+        if (index < pluginDescriptions.size()) {
+            std::cout << "RenderEngine::loadPlugin debug: Plugin name: " 
+                      << pluginDescriptions[index]->name.toStdString() << std::endl;
+        }
     }
     
     String errorMessage;
 
     if (plugin != nullptr) {
+        if (debugMode) {
+            std::cout << "RenderEngine::loadPlugin debug: Releasing previous plugin" << std::endl;
+        }
         plugin->releaseResources();
         delete plugin;
     }
@@ -87,6 +103,12 @@ bool RenderEngine::loadPlugin (const std::string& path, int index)
         // Resize the pluginParameters patch type to fit this plugin and init
         // all the values to 0.0f!
         fillAvailablePluginParameters (pluginParameters);
+
+        if (debugMode) {
+            std::cout << "RenderEngine::loadPlugin debug: Plugin loaded successfully" << std::endl;
+            std::cout << "RenderEngine::loadPlugin debug: Plugin has " << pluginParameters.size() << " parameters" << std::endl;
+            std::cout << "RenderEngine::loadPlugin debug: Plugin has " << plugin->getTotalNumOutputChannels() << " output channels" << std::endl;
+        }
 
         return true;
     }
@@ -535,4 +557,19 @@ bool RenderEngine::writeToWav(const std::string& path)
     recorder.stopRecording();
     recorder.saveToWav();
     return true;
+}
+
+//==============================================================================
+void RenderEngine::setDebugMode(bool enabled)
+{
+    debugMode = enabled;
+    if (debugMode) {
+        std::cout << "RenderEngine debug mode enabled" << std::endl;
+    }
+}
+
+//==============================================================================
+bool RenderEngine::getDebugMode() const
+{
+    return debugMode;
 }
