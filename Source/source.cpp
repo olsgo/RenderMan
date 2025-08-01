@@ -232,7 +232,9 @@ BOOST_PYTHON_MODULE(librenderman)
     .def("remove_overriden_plugin_parameter", &RenderEngineWrapper::removeOverridenParameter)
     .def("get_audio_frames", &RenderEngineWrapper::wrapperGetAudioFrames)
     .def("get_rms_frames", &RenderEngineWrapper::wrapperGetRMSFrames)
-    .def("write_to_wav", &RenderEngineWrapper::writeToWav);
+    .def("write_to_wav", &RenderEngineWrapper::writeToWav)
+    .def("set_debug_mode", &RenderEngineWrapper::setDebugMode)
+    .def("get_debug_mode", &RenderEngineWrapper::getDebugMode);
 
     class_<PatchGeneratorWrapper>("PatchGenerator", init<RenderEngineWrapper&>())
     .def("get_random_parameter", &PatchGeneratorWrapper::wrapperGetRandomParameter)

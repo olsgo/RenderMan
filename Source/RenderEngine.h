@@ -39,7 +39,8 @@ public:
         sampleRate(sr),
         bufferSize(bs),
         fftSize(ffts),
-        plugin(nullptr)
+        plugin(nullptr),
+        debugMode(false)
     {
         maxiSettings::setup (sampleRate, 1, bufferSize);
     }
@@ -94,6 +95,10 @@ public:
 
     bool writeToWav(const std::string& path);
 
+    void setDebugMode(bool enabled);
+    
+    bool getDebugMode() const;
+
 private:
     void fillAudioFeatures (const AudioSampleBuffer& data,
                             maxiFFT&                 fft);
@@ -120,6 +125,7 @@ private:
     std::vector<double>  processedMonoAudioPreview;
     std::vector<double>  rmsFrames;
     double               currentRmsFrame;
+    bool                 debugMode;
 };
 
 
